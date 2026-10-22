@@ -9,6 +9,7 @@ const LETTER = /\p{L}/u;
 export function detectLanguage(text: string, ancestorLang = ""): Lang {
   let arabic = 0;
   let letters = 0;
+  const declared = ancestorLang.toLowerCase();
 
   for (const char of text) {
     if (!LETTER.test(char)) continue;
@@ -16,8 +17,12 @@ export function detectLanguage(text: string, ancestorLang = ""): Lang {
     if (ARABIC_SCRIPT.test(char)) arabic += 1;
   }
 
-  if (letters > 0) return arabic / letters >= 0.5 ? "ar" : "en";
-  const declared = ancestorLang.toLowerCase();
+  if (letters > 0) {
+    const share = arabic / letters;
+    if (share === 0.5 && declared.startsWith("ar")) return "ar";
+    if (share === 0.5 && declared.startsWith("en")) return "en";
+    return share >= 0.5 ? "ar" : "en";
+  }
   if (declared.startsWith("ar")) return "ar";
   if (declared.startsWith("en")) return "en";
   return "en";

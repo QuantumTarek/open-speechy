@@ -17,6 +17,8 @@
 - M3 adds the loopback API, bearer-token auth, one-time extension pairing,
   per-engine request serialization/cancellation, install scripts, and the
   extension HTTP client with a next-sentence fallback path.
+- M4 text preparation handles Arabic digits, tatweel, number words, and mixed
+  English/Arabic word runs. Diacritization stays off without a verified model.
 
 ## Still blocked on measurements or implementation
 
@@ -25,5 +27,6 @@
 - M0 still needs device-specific system voice event traces. M3 server model
   adapters remain gated because no revision, checksum, or timing data was
   measured. The API tests need the optional Python dependencies to run. M4
+  Piper inference and per-language engine routing remain in progress. M5
   through M8 remain in progress. `docs/qa.md` lists the manual checks that still
   need a browser, local models, or a native Arabic speaker.

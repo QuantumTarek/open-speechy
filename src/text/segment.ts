@@ -1,5 +1,7 @@
 import type { Lang, SentencePlan, TextPiece } from "../engines/types";
 import { mapTextOffsets, type TextBlock } from "./extract";
+import { splitMixedScriptRuns } from "./lang";
+import { normalizeArabicWord } from "./normalize-ar";
 import { normalizeEnglishWord } from "./normalize-en";
 
 interface SegmentLike {
@@ -9,6 +11,8 @@ interface SegmentLike {
 
 const EN_SPECIAL_TOKENS =
   /(?:https?:\/\/|www\.)[^\s<>]+|[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[A-Za-z]{2,}|[$€£]\s?-?\d[\d,]*(?:\.\d+)?|-?\d[\d,]*(?:\.\d+)?(?:st|nd|rd|th)?%?/giu;
+const AR_SPECIAL_TOKENS =
+  /(?:[$€£]\s?-?[\d٠-٩۰-۹][\d٠-٩۰-۹,٬]*(?:[.٫][\d٠-٩۰-۹]+)?[%٪]?|-?[\d٠-٩۰-۹][\d٠-٩۰-۹,٬]*(?:[.٫][\d٠-٩۰-۹]+)?[%٪]?)/giu;
 
 function segmenter(
   locale: string,
@@ -47,6 +51,25 @@ function sentenceWordSegments(text: string, lang: Lang): SegmentLike[] {
   const ordinary = Array.from(segmenter(locale, "word").segment(text))
     .filter((part) => part.isWordLike)
     .map((part) => ({ segment: part.segment, index: part.index }));
+  if (lang === "ar") {
+    const special = Array.from(text.matchAll(AR_SPECIAL_TOKENS))
+      .map((match) => ({
+        segment: match[0].replace(/[.,!?;:،؛؟]+$/u, ""),
+        index: match.index,
+      }))
+      .filter((word) => word.segment);
+    return [
+      ...ordinary.filter((word) => {
+        const end = word.index + word.segment.length;
+        return !special.some(
+          (token) =>
+            word.index < token.index + token.segment.length &&
+            end > token.index,
+        );
+      }),
+      ...special,
+    ].sort((left, right) => left.index - right.index);
+  }
   if (lang !== "en") return ordinary;
 
   const special: SegmentLike[] = [];
@@ -113,39 +136,49 @@ export function segmentBlocks(
       if (!sentenceText) continue;
       const sourceStart = rawSentence.index + leadingTrim;
       const rawWords = sentenceWordSegments(sentenceText, lang);
-      const words = rawWords.map((word, localIndex) => {
-        const nextWord = rawWords[localIndex + 1];
-        const trailing = sentenceText.slice(
-          word.index + word.segment.length,
-          nextWord?.index ?? sentenceText.length,
-        );
-        const punctuation =
-          trailing.trimStart().match(/^[^\p{L}\p{N}\s]+/u)?.[0] ?? "";
-        const display = `${word.segment}${punctuation}`;
-        const wordStart = sourceStart + word.index;
-        const wordEnd = wordStart + word.segment.length;
-        const abbreviation = /^(?:dr|mr|mrs|ms)\.$/iu.test(display);
-        return {
-          index: wordIndex++,
-          display,
-          spoken:
-            lang === "en"
-              ? normalizeEnglishWord(abbreviation ? display : word.segment)
-              : [word.segment],
-          pieces: trimPieceRanges(block.pieces, wordStart, wordEnd),
-        };
-      });
-
-      if (words.length === 0) continue;
-      sentences.push({
-        id: `sentence-${sentences.length}`,
-        index: sentences.length,
-        paragraphIndex,
+      const runs = splitMixedScriptRuns(
+        rawWords.map((word) => ({ text: word.segment, lang })),
         lang,
-        text: sentenceText,
-        spokenText: words.flatMap((word) => word.spoken).join(" "),
-        words,
-      });
+      );
+      let rawWordIndex = 0;
+      for (const run of runs) {
+        const runLang = run[0]?.lang ?? lang;
+        const words = run.map(() => {
+          const localIndex = rawWordIndex++;
+          const word = rawWords[localIndex];
+          const nextWord = rawWords[localIndex + 1];
+          const trailing = sentenceText.slice(
+            word.index + word.segment.length,
+            nextWord?.index ?? sentenceText.length,
+          );
+          const punctuation =
+            trailing.trimStart().match(/^[^\p{L}\p{N}\s]+/u)?.[0] ?? "";
+          const display = `${word.segment}${punctuation}`;
+          const wordStart = sourceStart + word.index;
+          const wordEnd = wordStart + word.segment.length;
+          const abbreviation = /^(?:dr|mr|mrs|ms)\.$/iu.test(display);
+          return {
+            index: wordIndex++,
+            display,
+            spoken:
+              runLang === "en"
+                ? normalizeEnglishWord(abbreviation ? display : word.segment)
+                : normalizeArabicWord(word.segment),
+            pieces: trimPieceRanges(block.pieces, wordStart, wordEnd),
+          };
+        });
+
+        if (words.length === 0) continue;
+        sentences.push({
+          id: `sentence-${sentences.length}`,
+          index: sentences.length,
+          paragraphIndex,
+          lang: runLang,
+          text: words.map((word) => word.display).join(" "),
+          spokenText: words.flatMap((word) => word.spoken).join(" "),
+          words,
+        });
+      }
     }
   });
 

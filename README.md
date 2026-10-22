@@ -68,13 +68,15 @@ See [docs/STATUS.md](docs/STATUS.md) for milestone status and [docs/qa.md](docs/
 
 The English article flow, sentence queue, CSS Custom Highlight integration,
 system voice discovery, auto-routing, voice selection, and audition screen are
-in place. Run `pnpm test:e2e` to exercise the article flow in Playwright's
-bundled Chromium.
+in place. Arabic number normalization, offset-preserving word mapping, and
+mixed English/Arabic word runs are also covered by unit tests. Run
+`pnpm test:e2e` to exercise the article flow in Playwright's bundled Chromium.
 
 Real Kokoro downloads remain disabled until a pinned model revision and audited
 SHA-256 manifest are available. The M0 spike did not measure model timings,
 system-voice word events, Arabic pronunciation, or the companion-server engines.
 System voice routing requires a local Premium/Enhanced voice with the required
 word events. The voice list still shows compact and standard voices for manual
-selection. See [docs/spikes.md](docs/spikes.md); no timing or pronunciation
+selection. Browser Arabic diacritization stays off without a verified local
+predictor. See [docs/spikes.md](docs/spikes.md); no timing or pronunciation
 target is claimed yet.
