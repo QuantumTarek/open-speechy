@@ -1,11 +1,10 @@
 import { KokoroTTS, env as kokoroEnv } from "kokoro-js";
 import { env as transformersEnv } from "@huggingface/transformers";
-import modelManifest from "../models/models.json";
 import {
   ModelManager,
   ModelUnavailableError,
-  type ModelDescriptor,
 } from "../models/manager";
+import { MODEL_DESCRIPTORS } from "../models/catalog";
 import { KOKORO_VOICES } from "./voice-catalog";
 import { estimateWordTimings } from "./timings";
 import type {
@@ -17,7 +16,6 @@ import type {
 
 const MODEL_ID = "kokoro-en-q8";
 const MODEL_REPO = "onnx-community/Kokoro-82M-v1.0-ONNX";
-const MODEL_DESCRIPTORS = createModelDescriptors();
 
 export class KokoroEngine implements TtsEngine {
   readonly id = "kokoro" as const;
@@ -171,36 +169,6 @@ export class KokoroEngine implements TtsEngine {
       await this.#models.download(modelId);
     }
   }
-}
-
-function createModelDescriptors(): ModelDescriptor[] {
-  const models = modelManifest.models as ModelDescriptor[];
-  const base = models.find((model) => model.id === MODEL_ID);
-  if (!base?.revision) return models;
-  const voices = modelManifest.kokoroVoices as Record<
-    string,
-    { sha256: string; bytes: number }
-  >;
-
-  return [
-    ...models,
-    ...Object.entries(voices).map(([voice, file]) => ({
-      id: voiceModelId(voice),
-      engine: "kokoro",
-      lang: "en" as const,
-      modelId: MODEL_REPO,
-      revision: base.revision,
-      license: base.license,
-      verified: true,
-      files: [
-        {
-          url: `https://huggingface.co/${MODEL_REPO}/resolve/${base.revision}/voices/${voice}.bin`,
-          sha256: file.sha256,
-          bytes: file.bytes,
-        },
-      ],
-    })),
-  ];
 }
 
 function voiceModelId(voice: string): string {

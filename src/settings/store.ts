@@ -157,10 +157,25 @@ function mergeSettings(value: Record<string, unknown>): AppSettings {
     ...DEFAULT_SETTINGS,
     ...value,
     voice: { ...DEFAULT_SETTINGS.voice, ...voice },
-    highlight: { ...DEFAULT_SETTINGS.highlight, ...highlight },
-    pdf: { ...DEFAULT_SETTINGS.pdf, ...pdf },
-    arabic: { ...DEFAULT_SETTINGS.arabic, ...arabic },
-    server: { ...DEFAULT_SETTINGS.server, ...server },
+    highlight: {
+      enabled: booleanOr(highlight.enabled, DEFAULT_SETTINGS.highlight.enabled),
+      word: colorOr(highlight.word, DEFAULT_SETTINGS.highlight.word),
+      sentence: colorOr(highlight.sentence, DEFAULT_SETTINGS.highlight.sentence),
+    },
+    pdf: {
+      intercept: booleanOr(pdf.intercept, DEFAULT_SETTINGS.pdf.intercept),
+    },
+    arabic: {
+      diacritize: booleanOr(
+        arabic.diacritize,
+        DEFAULT_SETTINGS.arabic.diacritize,
+      ),
+    },
+    server: {
+      ...DEFAULT_SETTINGS.server,
+      ...server,
+      enabled: booleanOr(server.enabled, DEFAULT_SETTINGS.server.enabled),
+    },
     speed: clampNumber(value.speed, 0.5, 3, DEFAULT_SETTINGS.speed),
     lookahead: clampNumber(value.lookahead, 1, 4, DEFAULT_SETTINGS.lookahead),
     idleUnloadMinutes: clampNumber(
@@ -173,7 +188,24 @@ function mergeSettings(value: Record<string, unknown>): AppSettings {
       value.urls === "skip" || value.urls === "full"
         ? value.urls
         : DEFAULT_SETTINGS.urls,
+    autoScroll: booleanOr(value.autoScroll, DEFAULT_SETTINGS.autoScroll),
+    readCodeBlocks: booleanOr(
+      value.readCodeBlocks,
+      DEFAULT_SETTINGS.readCodeBlocks,
+    ),
+    selectionChip: booleanOr(value.selectionChip, DEFAULT_SETTINGS.selectionChip),
   } as AppSettings;
+}
+
+function booleanOr(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function colorOr(value: unknown, fallback: string): string {
+  if (typeof value !== "string" || value.length > 64) return fallback;
+  return /^(?:#[\da-f]{3,8}|rgba?\([\d\s.,%]+\))$/iu.test(value)
+    ? value
+    : fallback;
 }
 
 function clampNumber(

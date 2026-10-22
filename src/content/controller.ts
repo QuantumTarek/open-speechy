@@ -16,7 +16,9 @@ import {
 import { detectLanguage } from "../text/lang";
 import { segmentBlocks } from "../text/segment";
 import { mountPlayer, type MountedPlayer } from "../ui/mount-player";
+import { SelectionChip } from "../ui/selection-chip";
 import type { PlayerBarProps } from "../ui/PlayerBar";
+import { DEFAULT_SETTINGS, SettingsStore } from "../settings/store";
 
 type ReadSource = "article" | "selection";
 
@@ -39,7 +41,18 @@ export class ContentController {
   #highlighter: Highlighter | null = null;
   #clock: PlaybackClock | null = null;
   #player: MountedPlayer | null = null;
+  #selectionChip: SelectionChip;
   #listener: (message: unknown) => void;
+  #handleStorageChange = (
+    changes: { [key: string]: chrome.storage.StorageChange },
+    areaName: string,
+  ): void => {
+    if (areaName === "sync" && changes.selectionChip) {
+      this.#selectionChip.setEnabled(
+        changes.selectionChip.newValue !== false,
+      );
+    }
+  };
 
   constructor(
     private readonly document: Document,
@@ -50,6 +63,17 @@ export class ContentController {
       this.#handleRuntimeMessage(message);
     };
     chrome.runtime.onMessage.addListener(this.#listener);
+    this.#selectionChip = new SelectionChip(
+      this.document,
+      this.window,
+      () => void this.readSelection(),
+      DEFAULT_SETTINGS.selectionChip,
+    );
+    void new SettingsStore()
+      .load()
+      .then((settings) => this.#selectionChip.setEnabled(settings.selectionChip))
+      .catch(() => {});
+    chrome.storage.onChanged.addListener(this.#handleStorageChange);
 
     if (
       typeof __OPEN_SPEECHY_FAKE_ENGINE__ !== "undefined" &&
@@ -74,6 +98,7 @@ export class ContentController {
   }
 
   async readSelection(): Promise<void> {
+    this.#selectionChip.hide();
     const selection = this.window.getSelection();
     const blocks = selection ? extractSelectionBlocks(selection) : [];
     await this.#start(blocks, "selection");
@@ -81,6 +106,8 @@ export class ContentController {
 
   dispose(): void {
     chrome.runtime.onMessage.removeListener(this.#listener);
+    chrome.storage.onChanged.removeListener(this.#handleStorageChange);
+    this.#selectionChip.dispose();
     this.#clock?.stop();
     this.#highlighter?.dispose();
     this.#player?.unmount();

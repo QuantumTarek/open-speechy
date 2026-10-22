@@ -347,11 +347,13 @@ async function sendToOffscreen(message: RuntimeMessage): Promise<void> {
 async function sendToTab(
   tabId: number,
   message: RuntimeMessage,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await chrome.tabs.sendMessage(tabId, message);
+    return true;
   } catch {
     // Restricted pages such as chrome:// cannot host the content script.
+    return false;
   }
 }
 
@@ -612,11 +614,18 @@ async function openPopupAction(
     sendResponse({ ok: false, error: "No active tab." });
     return;
   }
-  await sendToTab(
+  const delivered = await sendToTab(
     tab.id,
     message.type === "popup/read-selection"
       ? { type: "content/read-selection" }
       : { type: "content/read-page" },
   );
-  sendResponse({ ok: true });
+  sendResponse(
+    delivered
+      ? { ok: true }
+      : {
+          ok: false,
+          error: "This page does not allow Open Speechy to read its content.",
+        },
+  );
 }

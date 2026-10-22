@@ -11,6 +11,7 @@ export default defineConfig({
     minimum_chrome_version: '116',
     action: {
       default_title: 'Read with Open Speechy',
+      default_popup: 'popup.html',
     },
     options_ui: {
       page: 'options.html',

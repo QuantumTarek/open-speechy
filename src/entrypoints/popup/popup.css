@@ -1,0 +1,134 @@
+:root {
+  color: #1e3536;
+  background: #e9e5d9;
+  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 320px;
+  min-height: 300px;
+  margin: 0;
+  background:
+    radial-gradient(ellipse at 95% 3%, rgba(201, 128, 76, 0.22), transparent 12rem),
+    linear-gradient(150deg, #f0ecdf 0%, #dce7df 100%);
+}
+
+button {
+  font: inherit;
+}
+
+.popup {
+  padding: 20px;
+}
+
+.popup__header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.popup__mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(30, 53, 54, 0.3);
+  border-radius: 50%;
+  color: #b15f3d;
+  font-family: Georgia, serif;
+  font-size: 14px;
+  transform: rotate(-7deg);
+}
+
+.popup__eyebrow {
+  margin: 0 0 4px;
+  color: #a85e3d;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+h1 {
+  margin: 0;
+  color: #193638;
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 25px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.popup__primary,
+.popup__secondary {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.popup__primary {
+  border: 1px solid #193638;
+  background: #193638;
+  color: #fffaf0;
+}
+
+.popup__primary:hover:not(:disabled) {
+  background: #2b5354;
+}
+
+.popup__secondary {
+  margin-top: 9px;
+  border: 1px solid #b5beb3;
+  background: rgba(255, 253, 247, 0.72);
+  color: #254a4a;
+}
+
+.popup__secondary:hover:not(:disabled) {
+  background: #fffdf7;
+}
+
+button:focus-visible {
+  outline: 3px solid #c5794e;
+  outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.popup__settings {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  margin-top: 15px;
+  padding: 8px 1px;
+  border: 0;
+  background: transparent;
+  color: #8b4d35;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.popup__notice {
+  min-height: 16px;
+  margin: 5px 0 0;
+  color: #8b3d34;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+footer {
+  margin-top: 12px;
+  color: #697a73;
+  font-size: 10px;
+}

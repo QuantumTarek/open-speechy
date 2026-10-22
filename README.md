@@ -86,10 +86,12 @@ See [docs/STATUS.md](docs/STATUS.md) for milestone status and [docs/qa.md](docs/
 
 The English article flow, sentence queue, CSS Custom Highlight integration,
 system voice discovery, auto-routing, voice selection, and audition screen are
-in place. Arabic number normalization, offset-preserving word mapping, and
-mixed English/Arabic word runs are also covered by unit tests. Mixed sentences
-route by language to the selected local or server engine. Run `pnpm test:e2e`
-to exercise article and mixed-script reading in Playwright's bundled Chromium.
+in place. The toolbar popup starts article and selection reading, and a
+selection chip appears beside long selections. Arabic number normalization,
+offset-preserving word mapping, and mixed English/Arabic word runs are also
+covered by unit tests. Mixed sentences route by language to the selected local
+or server engine. Run `pnpm test:e2e` to exercise article, mixed-script, and
+selection reading in Playwright's bundled Chromium.
 
 Kokoro, Piper Kareem, and libtashkeel have pinned revisions and SHA-256
 manifests in `src/models/models.json`; each downloads only when selected.

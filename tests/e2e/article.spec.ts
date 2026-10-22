@@ -163,6 +163,101 @@ test("reads mixed Arabic and English runs without changing the article", async (
   }
 });
 
+test("offers a selection chip for long selections and starts reading it", async () => {
+  test.skip(!existsSync(extensionPath), "Build the test extension first.");
+
+  const userDataDir = await mkdtemp(join(tmpdir(), "open-speechy-selection-"));
+  let context: BrowserContext | null = null;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      channel: "chromium",
+      headless: true,
+      args: [
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`,
+      ],
+    });
+    const page = await context.newPage();
+    await page.goto("/en-article.html");
+    const article = page.locator("#article");
+    const before = await article.innerHTML();
+    await page.evaluate(() => {
+      const paragraph = document.querySelector("#article p");
+      if (!paragraph) throw new Error("Fixture paragraph not found.");
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(paragraph);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+    const chip = page.locator("[data-open-speechy-selection-chip]");
+    await expect(chip).toHaveCount(1);
+    await page.evaluate(() => {
+      document
+        .querySelector("[data-open-speechy-selection-chip]")
+        ?.shadowRoot?.querySelector("button")
+        ?.click();
+    });
+    await expect(page.locator("#open-speechy-player")).toHaveCount(1);
+    await expect
+      .poll(() => page.evaluate(getCurrentWordText), { timeout: 5_000 })
+      .not.toBe("");
+    expect(await article.innerHTML()).toBe(before);
+  } finally {
+    await context?.close();
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test("reads a long selection from its floating chip", async () => {
+  test.skip(!existsSync(extensionPath), "Build the test extension first.");
+
+  const userDataDir = await mkdtemp(join(tmpdir(), "open-speechy-selection-"));
+  let context: BrowserContext | null = null;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      channel: "chromium",
+      headless: true,
+      args: [
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`,
+      ],
+    });
+    const page = await context.newPage();
+    await page.goto("/en-article.html");
+    const article = page.locator("#article");
+    const before = await article.innerHTML();
+    await page.evaluate(() => {
+      const paragraph = document.querySelector("#article p");
+      if (!paragraph) throw new Error("Fixture paragraph not found.");
+      const range = document.createRange();
+      range.selectNodeContents(paragraph);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+    await expect(
+      page.locator("[data-open-speechy-selection-chip]"),
+    ).toHaveCount(1);
+    await page.evaluate(() => {
+      document
+        .querySelector("[data-open-speechy-selection-chip]")
+        ?.shadowRoot?.querySelector("button")
+        ?.click();
+    });
+    await expect(page.locator("#open-speechy-player")).toHaveCount(1);
+    await expect
+      .poll(() => page.evaluate(getCurrentWordText), { timeout: 5_000 })
+      .not.toBe("");
+    expect(await article.innerHTML()).toBe(before);
+  } finally {
+    await context?.close();
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});
+
 function getCurrentWordText(): string {
   let text = "";
   CSS.highlights.get("os-word")?.forEach((range) => {

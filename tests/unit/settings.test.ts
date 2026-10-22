@@ -47,4 +47,34 @@ describe("settings", () => {
     expect(localStorage.values.openSpeechyServerToken).toBe("local-token");
     expect((await store.load()).server.url).toBe(DEFAULT_SETTINGS.server.url);
   });
+
+  it("validates feature switches and highlight colors", async () => {
+    const store = new SettingsStore(new MemorySettings(), new MemorySettings());
+
+    const updated = await store.update({
+      autoScroll: false,
+      readCodeBlocks: true,
+      selectionChip: false,
+      highlight: {
+        enabled: false,
+        word: "rgba(20, 40, 60, 0.7)",
+        sentence: "url(javascript:alert(1))",
+      },
+      pdf: { intercept: false },
+      arabic: { diacritize: true },
+      server: { enabled: false },
+    });
+
+    expect(updated.autoScroll).toBe(false);
+    expect(updated.readCodeBlocks).toBe(true);
+    expect(updated.selectionChip).toBe(false);
+    expect(updated.highlight).toEqual({
+      enabled: false,
+      word: "rgba(20, 40, 60, 0.7)",
+      sentence: DEFAULT_SETTINGS.highlight.sentence,
+    });
+    expect(updated.pdf.intercept).toBe(false);
+    expect(updated.arabic.diacritize).toBe(true);
+    expect(updated.server.enabled).toBe(false);
+  });
 });

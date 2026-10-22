@@ -2,7 +2,6 @@ import * as ort from "onnxruntime-web";
 import createPiperPhonemize from "@diffusionstudio/piper-wasm/build/piper_phonemize.js";
 import piperDataUrl from "@diffusionstudio/piper-wasm/build/piper_phonemize.data?url";
 import piperWasmUrl from "@diffusionstudio/piper-wasm/build/piper_phonemize.wasm?url";
-import modelManifest from "../models/models.json";
 import { ArabicDiacritizer, createLibTashkeelPredictor } from "./diacritizer";
 import { parsePiperPhonemeOutput, piperScales } from "./piper-utils";
 import { estimateWordTimings } from "./timings";
@@ -15,8 +14,8 @@ import type {
 import {
   ModelManager,
   ModelUnavailableError,
-  type ModelDescriptor,
 } from "../models/manager";
+import { MODEL_DESCRIPTORS } from "../models/catalog";
 
 const MODEL_ID = "piper-ar-kareem-medium";
 const VOICE_ID = "piper:ar_JO-kareem-medium";
@@ -40,9 +39,7 @@ interface PiperPhonemizeModule {
 
 export class PiperEngine implements TtsEngine {
   readonly id = "piper" as const;
-  readonly #models = new ModelManager(
-    modelManifest.models as ModelDescriptor[],
-  );
+  readonly #models = new ModelManager(MODEL_DESCRIPTORS);
   #diacritizerPredictor: ReturnType<typeof createLibTashkeelPredictor> | null =
     null;
   readonly #diacritizer: ArabicDiacritizer;
