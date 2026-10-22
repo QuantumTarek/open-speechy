@@ -9,6 +9,8 @@ export default tseslint.config(
       ".output/**",
       ".wxt/**",
       "node_modules/**",
+      ".venv/**",
+      "server/.venv/**",
       "coverage/**",
       "public/ort/**",
       ".playwright/**",

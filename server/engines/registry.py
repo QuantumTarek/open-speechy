@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .base import EngineUnavailable, SpeechEngine, Synthesis
+from .chatterbox_ml import ChatterboxMultilingualEngine
 from .chatterbox_nano import ChatterboxNanoEngine
 from .kokoro import KokoroEngine
 from .silma import SilmaEngine
@@ -11,7 +12,12 @@ class EngineRegistry:
         configured = (
             engines
             if engines is not None
-            else [KokoroEngine(), SilmaEngine(), ChatterboxNanoEngine()]
+            else [
+                KokoroEngine(),
+                SilmaEngine(),
+                ChatterboxNanoEngine(),
+                ChatterboxMultilingualEngine(),
+            ]
         )
         self._engines = {engine.id: engine for engine in configured}
 

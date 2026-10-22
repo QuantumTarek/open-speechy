@@ -13,7 +13,7 @@ New-Item -ItemType Directory -Force -Path $BaseDir | Out-Null
 New-Item -ItemType Directory -Force -Path $ServerDir | Out-Null
 Copy-Item -Path (Join-Path $SourceDir "*") -Destination $ServerDir -Recurse -Force
 
-& $Uv.Source sync --project $ServerDir --no-dev
+& $Uv.Source sync --project $ServerDir --python 3.11 --no-dev --extra engines
 if ($LASTEXITCODE -ne 0) { throw "uv sync failed." }
 
 $env:OPEN_SPEECHY_TOKEN_FILE = Join-Path $BaseDir "token"

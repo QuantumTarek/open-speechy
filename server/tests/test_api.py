@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-
 from server.app import create_app, run_server
 from server.auth import AuthManager, PairingManager
 from server.engines.base import Synthesis

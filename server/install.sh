@@ -20,7 +20,7 @@ chmod 700 "$BASE_DIR"
 mkdir -p "$SERVER_DIR"
 cp -R "$SOURCE_DIR/." "$SERVER_DIR/"
 
-uv sync --project "$SERVER_DIR" --no-dev
+uv sync --project "$SERVER_DIR" --python 3.11 --no-dev --extra engines
 OPEN_SPEECHY_TOKEN_FILE="$BASE_DIR/token" \
   uv run --project "$SERVER_DIR" python "$SERVER_DIR/auth.py" >/dev/null
 

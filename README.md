@@ -49,12 +49,30 @@ LaunchAgent. Open `http://127.0.0.1:5123/pair`, then enter its one-time code in
 the extension's Local server settings. `./server/uninstall.sh` removes the
 LaunchAgent but leaves the local token and files in place.
 
-The M0 model checks did not verify server model revisions, checksums, speed, or
-quality. The server therefore does not advertise a speech voice by default.
-Kokoro can be enabled for local testing with
-`OPEN_SPEECHY_ALLOW_UNVERIFIED_MODELS=1`, but it is not a verified release
-configuration. SILMA and Chatterbox remain disabled until their adapters and
-measurements are verified.
+The server loads Kokoro, SILMA, Chatterbox-Nano, and Chatterbox-Multilingual
+through pinned Hugging Face revisions in `server/models.json`. Model weights
+download on first use, not during installation. Approximate upstream file
+sizes range from 330 MB for Kokoro to several GB for SILMA and Chatterbox.
+The first warm-up can take several minutes and needs enough free disk space.
+
+SILMA is the automatic Arabic server voice. Kokoro is the automatic English
+server voice. Chatterbox-Nano is an optional English voice, and
+Chatterbox-Multilingual remains an experimental manual choice. The server uses
+MMS_FA forced alignment where it can; if alignment is unavailable or has low
+confidence, it uses estimated word timings. M0 did not measure synthesis speed,
+alignment drift, or native-speaker pronunciation ratings, so this repo does
+not claim those targets are met.
+
+Run the server API and adapter tests with:
+
+```sh
+cd server
+uv sync --python 3.11 --extra dev
+uv run pytest
+```
+
+Check [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) before redistributing
+model weights; the Piper voice card does not state its dataset license.
 
 ## Privacy and permissions
 
