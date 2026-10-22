@@ -5,11 +5,12 @@ export type SessionControlAction =
   "toggle" | "play" | "pause" | "next" | "previous" | "seek" | "stop";
 
 export interface SessionEvent {
-  type: "session/state" | "session/sentence-start";
+  type: "session/state" | "session/sentence-start" | "session/word";
   state?: SessionState;
   error?: string;
   sentenceId?: string;
   sentenceIndex?: number;
+  wordIndex?: number;
   timings?: WordTiming[];
   timingSource?: "model" | "estimated" | "aligned";
   durationMs?: number;
@@ -32,7 +33,9 @@ export type RuntimeMessage =
       speed?: number;
     }
   | { type: "session/set-speed"; speed: number }
-  | { type: "session/set-voice"; voiceId: string }
+  | { type: "session/set-voice"; voiceId: string; lang?: Lang }
+  | { type: "voices/list" }
+  | { type: "voice/audition"; voiceId: string }
   | {
       type: "offscreen/session-start";
       sentences: PlayableSentence[];

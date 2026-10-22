@@ -56,12 +56,15 @@ See [docs/STATUS.md](docs/STATUS.md) for milestone status and [docs/qa.md](docs/
 
 ## Current status
 
-The English article flow, sentence queue, deterministic test engine, and CSS
-Custom Highlight integration are in place. Run `pnpm test:e2e` to exercise the
-fixture flow in Playwright's bundled Chromium.
+The English article flow, sentence queue, CSS Custom Highlight integration,
+system voice discovery, auto-routing, voice selection, and audition screen are
+in place. Run `pnpm test:e2e` to exercise the article flow in Playwright's
+bundled Chromium.
 
 Real Kokoro downloads remain disabled until a pinned model revision and audited
 SHA-256 manifest are available. The M0 spike did not measure model timings,
-system-voice events, Arabic pronunciation, or the companion-server engines.
-Those checks are recorded in [docs/spikes.md](docs/spikes.md); no speed or
-pronunciation target is claimed yet.
+system-voice word events, Arabic pronunciation, or the companion-server engines.
+System voice routing requires a local Premium/Enhanced voice with the required
+word events. The voice list still shows compact and standard voices for manual
+selection. See [docs/spikes.md](docs/spikes.md); no timing or pronunciation
+target is claimed yet.

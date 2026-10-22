@@ -1,7 +1,25 @@
+import { mapSystemVoice, SystemTtsEngine } from "../engines/system";
+import { selectVoice } from "../engines/router";
+import type { Lang, VoiceInfo } from "../engines/types";
+import { browserVoiceCatalog } from "../engines/voice-catalog";
+import { SettingsStore } from "../settings/store";
+import { SystemSpeechSession } from "../playback/system-session";
+import type { PlayableSentence, SessionState } from "../playback/session";
 import { isRuntimeMessage, type RuntimeMessage } from "../messaging/protocol";
 import { defineBackground } from "wxt/utils/define-background";
 
 let activeTabId: number | null = null;
+let activeSystemSession: SystemSpeechSession | null = null;
+let activeSession:
+  | {
+      tabId: number;
+      sentences: PlayableSentence[];
+      voiceId: string;
+      lang: Lang;
+      speed: number;
+      currentWordIndex: number | null;
+    }
+  | null = null;
 
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
@@ -65,7 +83,7 @@ export default defineBackground(() => {
           return false;
         }
         void startSession(tabId, value)
-          .then(() => sendResponse({ ok: true }))
+          .then((result) => sendResponse({ ok: true, ...result }))
           .catch((error: unknown) =>
             sendResponse({
               ok: false,
@@ -73,6 +91,36 @@ export default defineBackground(() => {
                 error instanceof Error
                   ? error.message
                   : "Could not start playback.",
+            }),
+          );
+        return true;
+      }
+
+      if (value.type === "voices/list") {
+        void listAvailableVoices()
+          .then((voices) => sendResponse({ ok: true, voices }))
+          .catch((error: unknown) =>
+            sendResponse({
+              ok: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Could not list available voices.",
+            }),
+          );
+        return true;
+      }
+
+      if (value.type === "voice/audition") {
+        void auditionVoice(value.voiceId)
+          .then(() => sendResponse({ ok: true }))
+          .catch((error: unknown) =>
+            sendResponse({
+              ok: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Could not audition this voice.",
             }),
           );
         return true;
@@ -91,11 +139,7 @@ export default defineBackground(() => {
         ) {
           return false;
         }
-        void sendToOffscreen(toOffscreenMessage(value));
-        if (value.type === "session/control" && value.action === "stop") {
-          activeTabId = null;
-          void chrome.storage.session.remove("openSpeechyActiveTab");
-        }
+        void handleSessionCommand(tabId, value);
         sendResponse({ ok: true });
         return false;
       }
@@ -132,28 +176,95 @@ export default defineBackground(() => {
 async function startSession(
   tabId: number,
   message: Extract<RuntimeMessage, { type: "session/start" }>,
-): Promise<void> {
+): Promise<{ voices: VoiceInfo[]; voiceId: string; warning?: string }> {
   if (activeTabId !== null && activeTabId !== tabId) {
     await sendToTab(activeTabId, {
       type: "content/session-state",
       state: "idle",
       error: "Reading moved to another tab.",
     });
-    await sendToOffscreen({
-      type: "offscreen/session-control",
-      action: "stop",
-    });
+    await stopActiveOutput();
   }
   activeTabId = tabId;
   await chrome.storage.session.set({ openSpeechyActiveTab: tabId });
-  await ensureOffscreen();
-  await sendToOffscreen({
-    type: "offscreen/session-start",
-    sentences: message.sentences,
-    startWordIndex: message.startWordIndex,
-    voiceId: message.voiceId,
-    speed: message.speed,
+  await stopActiveOutput();
+
+  const lang = message.sentences[0]?.lang ?? "en";
+  const store = new SettingsStore();
+  const settings = await store.load();
+  const discovered = await discoverVoices();
+  const selection = selectVoice(lang, {
+    override: message.voiceId ?? settings.voice[lang],
+    systemVoices: discovered.system,
+    serverVoices: [],
+    serverPaired: false,
+    serverHealthy: false,
+    localVoices: discovered.local,
   });
+  const speed = clampSpeed(message.speed ?? settings.speed);
+  const useSystemVoice =
+    selection.voice.engineId === "system" &&
+    message.sentences.every((sentence) => sentence.lang === lang);
+
+  activeSession = {
+    tabId,
+    sentences: message.sentences,
+    voiceId: selection.voice.id,
+    lang,
+    speed,
+    currentWordIndex:
+      message.startWordIndex ??
+      message.sentences[0]?.words[0]?.index ??
+      null,
+  };
+
+  if (message.voiceId && message.voiceId !== "auto") {
+    await store.update({ voice: { [lang]: selection.voice.id } });
+  }
+
+  if (useSystemVoice) {
+    const session = new SystemSpeechSession(
+      new SystemTtsEngine(selection.voice),
+      {
+        onState(state, error) {
+          void sendSessionEvent(tabId, { type: "session/state", state, error });
+        },
+        onWord(sentenceId, wordIndex) {
+          if (activeSession?.tabId === tabId) {
+            activeSession.currentWordIndex = wordIndex;
+          }
+          void sendSessionEvent(tabId, {
+            type: "session/word",
+            sentenceId,
+            wordIndex,
+          });
+        },
+      },
+    );
+    activeSystemSession = session;
+    session.start(message.sentences, {
+      startWordIndex: message.startWordIndex,
+      speed,
+    });
+  } else {
+    activeSystemSession = null;
+    await ensureOffscreen();
+    await sendToOffscreen({
+      type: "offscreen/session-start",
+      sentences: message.sentences,
+      startWordIndex: message.startWordIndex,
+      voiceId: selection.voice.id,
+      speed,
+    });
+  }
+
+  return {
+    voices: discovered.list,
+    voiceId: selection.voice.id,
+    warning: selection.overrideUnavailable
+      ? "The saved voice is unavailable. Using the best available voice."
+      : undefined,
+  };
 }
 
 async function ensureOffscreen(): Promise<void> {
@@ -192,12 +303,180 @@ async function forwardSessionEvent(
         ? stored.openSpeechyActiveTab
         : null;
   }
+  if (
+    message.event.type === "session/sentence-start" &&
+    activeSession &&
+    message.event.timings?.length
+  ) {
+    activeSession.currentWordIndex = message.event.timings[0].wordIndex;
+  }
   if (activeTabId !== null) {
     await sendToTab(activeTabId, {
       type: "session/event",
       event: message.event,
     });
   }
+}
+
+async function handleSessionCommand(
+  tabId: number | undefined,
+  message: Extract<
+    RuntimeMessage,
+    { type: "session/control" | "session/set-speed" | "session/set-voice" }
+  >,
+): Promise<void> {
+  if (message.type === "session/set-voice") {
+    if (!activeSession || tabId === undefined || activeSession.tabId !== tabId) {
+      return;
+    }
+    const lang = message.lang ?? activeSession.lang;
+    const startWordIndex = activeSession.currentWordIndex ?? undefined;
+    await startSession(tabId, {
+      type: "session/start",
+      sentences: activeSession.sentences,
+      startWordIndex,
+      voiceId: message.voiceId,
+      speed: activeSession.speed,
+    });
+    await new SettingsStore().update({
+      voice: { [lang]: message.voiceId },
+    });
+    return;
+  }
+
+  if (message.type === "session/set-speed") {
+    if (activeSession) activeSession.speed = clampSpeed(message.speed);
+    if (activeSystemSession) activeSystemSession.setSpeed(message.speed);
+    else await sendToOffscreen(toOffscreenMessage(message));
+    return;
+  }
+
+  if (activeSystemSession) {
+    if (message.action === "toggle") activeSystemSession.toggle();
+    else if (message.action === "play") activeSystemSession.resume();
+    else if (message.action === "pause") activeSystemSession.pause();
+    else if (message.action === "next") activeSystemSession.next();
+    else if (message.action === "previous") activeSystemSession.previous();
+    else if (
+      message.action === "seek" &&
+      message.wordIndex !== undefined
+    ) {
+      activeSystemSession.seek(message.wordIndex);
+    } else if (message.action === "stop") {
+      activeSystemSession.stop();
+      activeSystemSession = null;
+      activeSession = null;
+    }
+  } else {
+    await sendToOffscreen(toOffscreenMessage(message));
+    if (message.action === "stop") activeSession = null;
+  }
+
+  if (message.action === "stop") {
+    activeTabId = null;
+    await chrome.storage.session.remove("openSpeechyActiveTab");
+  }
+}
+
+async function stopActiveOutput(): Promise<void> {
+  activeSystemSession?.stop();
+  activeSystemSession = null;
+  if (await chrome.offscreen.hasDocument()) {
+    await sendToOffscreen({
+      type: "offscreen/session-control",
+      action: "stop",
+    });
+  }
+  activeSession = null;
+}
+
+async function sendSessionEvent(
+  tabId: number,
+  event: {
+    type: "session/state" | "session/word";
+    state?: SessionState;
+    error?: string;
+    sentenceId?: string;
+    wordIndex?: number;
+  },
+): Promise<void> {
+  await sendToTab(tabId, { type: "session/event", event });
+}
+
+async function discoverVoices(): Promise<{
+  system: Array<{ voice: VoiceInfo; eventTypes: string[] }>;
+  local: VoiceInfo[];
+  list: VoiceInfo[];
+}> {
+  let chromeVoices: chrome.tts.TtsVoice[] = [];
+  try {
+    chromeVoices = await chrome.tts.getVoices();
+  } catch {
+    chromeVoices = [];
+  }
+  const system = chromeVoices.flatMap((raw) => {
+    const voice = mapSystemVoice(raw);
+    return voice ? [{ voice, eventTypes: raw.eventTypes ?? [] }] : [];
+  });
+  const local = browserVoiceCatalog();
+  return {
+    system,
+    local,
+    list: [...system.map(({ voice }) => voice), ...local],
+  };
+}
+
+async function listAvailableVoices(): Promise<VoiceInfo[]> {
+  return (await discoverVoices()).list;
+}
+
+async function auditionVoice(voiceId: string): Promise<void> {
+  const voice = (await listAvailableVoices()).find(
+    (candidate) => candidate.id === voiceId,
+  );
+  if (!voice) throw new Error("That voice is no longer available.");
+  if (voice.engineId !== "system") {
+    throw new Error(
+      "On-device model audition is unavailable until its verified model files are installed.",
+    );
+  }
+  const sentence = voice.lang === "ar" ? "مرحبًا، هذا صوت محلي." : "This is a local voice sample.";
+  const words = sentence.split(/\s+/u);
+  const engine = new SystemTtsEngine(voice);
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("Voice audition timed out.")),
+      30_000,
+    );
+    engine.speak(
+      {
+        sentenceId: "voice-audition",
+        lang: voice.lang,
+        voiceId: voice.id,
+        wordIndices: words.map((_, index) => index),
+        words,
+        text: sentence,
+        speed: 1,
+      },
+      {
+        onStart: () => {},
+        onWord: () => {},
+        onEnd: () => {
+          clearTimeout(timeout);
+          resolve();
+        },
+        onError: (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        },
+      },
+    );
+  });
+}
+
+function clampSpeed(speed: number): number {
+  return Math.min(3, Math.max(0.5, speed));
 }
 
 function toOffscreenMessage(

@@ -1,4 +1,5 @@
 import type { KeyboardEvent } from "react";
+import type { Lang, VoiceInfo } from "../engines/types";
 import type { SessionControlAction } from "../messaging/protocol";
 import type { SessionState } from "../playback/session";
 
@@ -10,8 +11,12 @@ export interface PlayerBarProps {
   driftMs: number;
   speed: number;
   title: string;
+  voices: VoiceInfo[];
+  voiceId: string;
+  lang: Lang;
   onControl(action: SessionControlAction): void;
   onSpeed(speed: number): void;
+  onVoice(voiceId: string): void;
   onClose(): void;
 }
 
@@ -103,6 +108,22 @@ export function PlayerBar(props: PlayerBarProps) {
           onChange={(event) => props.onSpeed(Number(event.currentTarget.value))}
         />
       </label>
+      <label className="player__voice">
+        <span>Voice</span>
+        <select
+          aria-label="Reading voice"
+          value={props.voiceId}
+          onChange={(event) => props.onVoice(event.currentTarget.value)}
+        >
+          {props.voices
+            .filter((voice) => voice.lang === props.lang)
+            .map((voice) => (
+              <option key={voice.id} value={voice.id}>
+                {voice.name} · {qualityLabel(voice)}
+              </option>
+            ))}
+        </select>
+      </label>
       <span className="player__drift" aria-live="off">
         {props.status === "playing" ? `Drift ${props.driftMs} ms` : ""}
       </span>
@@ -116,4 +137,13 @@ export function PlayerBar(props: PlayerBarProps) {
       </button>
     </div>
   );
+}
+
+function qualityLabel(voice: VoiceInfo): string {
+  if (voice.engineId === "system") {
+    return voice.quality === "standard" || voice.quality === "compact"
+      ? `${voice.quality}${voice.supportsWordTimings ? "" : ", no word events"}`
+      : voice.quality;
+  }
+  return voice.engineId === "server" ? "Local server" : "On-device";
 }

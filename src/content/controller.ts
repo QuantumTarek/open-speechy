@@ -1,4 +1,4 @@
-import type { Lang, SentencePlan } from "../engines/types";
+import type { Lang, SentencePlan, VoiceInfo } from "../engines/types";
 import { Highlighter } from "../highlight/highlighter";
 import {
   isRuntimeMessage,
@@ -28,6 +28,8 @@ export class ContentController {
   #driftMs = 0;
   #speed = 1;
   #title = "";
+  #voiceId = "kokoro:af_heart";
+  #voices: VoiceInfo[] = [];
   #highlighter: Highlighter | null = null;
   #clock: PlaybackClock | null = null;
   #player: MountedPlayer | null = null;
@@ -113,12 +115,22 @@ export class ContentController {
     };
     try {
       const response = (await chrome.runtime.sendMessage(message)) as
-        { ok?: boolean; error?: string } | undefined;
+        | {
+            ok?: boolean;
+            error?: string;
+            voiceId?: string;
+            voices?: VoiceInfo[];
+          }
+        | undefined;
       if (response?.ok === false) {
         this.#setState(
           "error",
           response.error ?? "Could not start the reader.",
         );
+      } else if (response) {
+        this.#voiceId = response.voiceId ?? this.#voiceId;
+        this.#voices = response.voices ?? this.#voices;
+        this.#render();
       }
     } catch (error) {
       this.#setState(
@@ -164,6 +176,14 @@ export class ContentController {
       if (event.state === "idle" || event.state === "ended") {
         this.#clock?.setPaused(false);
       }
+    } else if (
+      event.type === "session/word" &&
+      event.sentenceId &&
+      event.wordIndex !== undefined
+    ) {
+      this.#currentWordIndex = event.wordIndex;
+      this.#highlighter?.highlightWord(event.wordIndex, event.sentenceId);
+      this.#render();
     } else if (
       event.type === "session/sentence-start" &&
       event.sentenceId &&
@@ -244,6 +264,9 @@ export class ContentController {
       driftMs: this.#driftMs,
       speed: this.#speed,
       title: this.#title,
+      voices: this.#voices,
+      voiceId: this.#voiceId,
+      lang: this.#languageForWord(this.#currentWordIndex),
       onControl: (action) => {
         if (action === "play" || action === "pause") {
           void this.#send({ type: "session/control", action });
@@ -256,10 +279,29 @@ export class ContentController {
         this.#render();
         void this.#send({ type: "session/set-speed", speed });
       },
+      onVoice: (voiceId) => {
+        this.#voiceId = voiceId;
+        this.#render();
+        void this.#send({
+          type: "session/set-voice",
+          voiceId,
+          lang: this.#languageForWord(this.#currentWordIndex),
+        });
+      },
       onClose: () => {
         void this.#control("stop");
       },
     };
+  }
+
+  #languageForWord(wordIndex: number | null): Lang {
+    if (wordIndex !== null) {
+      const current = this.#sentences.find((sentence) =>
+        sentence.words.some((word) => word.index === wordIndex),
+      );
+      if (current) return current.lang;
+    }
+    return this.#sentences[0]?.lang ?? "en";
   }
 }
 
