@@ -80,10 +80,17 @@ export type RuntimeMessage =
   | { type: "popup/read-selection" }
   | { type: "popup/read-pdf" }
   | { type: "popup/read-document" }
-  | { type: "content/read-document" }
+  | { type: "content/read-document"; key: string }
   | { type: "pdf/open"; url: string }
   | { type: "reader/open"; key: string }
-  | { type: "reader/ready"; key: string; html: string; text?: string }
+  | {
+      type: "reader/ready";
+      key: string;
+      html?: string;
+      text?: string;
+      title?: string;
+      error?: string;
+    }
   | {
       type: "session/ready";
       sentenceCount: number;

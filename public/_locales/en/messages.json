@@ -406,5 +406,29 @@
   },
   "pdfFileAccessHint": {
     "message": "Could not open the file. Enable “Allow access to file URLs” for Open Speechy in chrome://extensions, then reload this tab."
+  },
+  "readThisDocument": {
+    "message": "Read this document"
+  },
+  "readerTitle": {
+    "message": "Reader"
+  },
+  "readerPasteRead": {
+    "message": "Read pasted text"
+  },
+  "readerPasteHint": {
+    "message": "Paste text here…"
+  },
+  "readerPastePrompt": {
+    "message": "Paste text to read it aloud."
+  },
+  "readerNothing": {
+    "message": "Nothing to read yet."
+  },
+  "readerPasted": {
+    "message": "Pasted text"
+  },
+  "readerDocFallback": {
+    "message": "This document could not be exported. Copy its text and paste it here to read it."
   }
 }

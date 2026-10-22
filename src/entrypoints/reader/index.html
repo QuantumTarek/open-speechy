@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open Speechy — Reader</title>
+  </head>
+  <body>
+    <header id="reader-toolbar" aria-hidden="true">
+      <span id="reader-title" class="reader-toolbar__title">Reader</span>
+      <button id="reader-read" type="button">Read</button>
+    </header>
+    <main id="reader-content" class="reader-content">
+      <div id="reader-empty" class="reader-empty">
+        <p id="reader-status">Paste text to read it aloud.</p>
+        <textarea
+          id="reader-paste"
+          rows="10"
+          placeholder="Paste text here…"
+        ></textarea>
+        <button id="reader-paste-read" type="button">Read pasted text</button>
+      </div>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

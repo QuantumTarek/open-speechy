@@ -1,0 +1,79 @@
+body {
+  margin: 0;
+  font-family:
+    Georgia,
+    "Noto Naskh Arabic",
+    "Geeza Pro",
+    serif;
+  background: #f7f5f0;
+  color: #1d2a2c;
+}
+
+#reader-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #20242a;
+  color: #e8eaed;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.reader-toolbar__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70vw;
+}
+
+#reader-toolbar button,
+.reader-empty button {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 4px 14px;
+  cursor: pointer;
+}
+
+.reader-content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 20px 96px;
+  font-size: 19px;
+  line-height: 1.75;
+}
+
+.reader-content [dir="rtl"],
+.reader-content [lang="ar"] {
+  font-family: "Noto Naskh Arabic", "Geeza Pro", serif;
+}
+
+.reader-empty {
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#reader-paste {
+  font: inherit;
+  padding: 10px;
+  border: 1px solid #c9c4b8;
+  border-radius: 8px;
+  resize: vertical;
+}
+
+#reader-paste-read {
+  align-self: flex-start;
+  background: #20242a;
+  color: #e8eaed;
+  border: none;
+}

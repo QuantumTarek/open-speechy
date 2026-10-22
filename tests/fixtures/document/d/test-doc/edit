@@ -1,0 +1,7 @@
+<!doctype html>
+<html>
+  <head><title>Test doc - Google Docs</title></head>
+  <body>
+    <div id="docs-editor">Fake Google Docs editor surface (canvas)</div>
+  </body>
+</html>

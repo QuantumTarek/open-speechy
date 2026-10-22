@@ -7,6 +7,7 @@ const port = Number(process.env.FIXTURE_PORT ?? 4173);
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],
   [".pdf", "application/pdf"],
+  ["", "text/html; charset=utf-8"],
 ]);
 
 createServer(async (request, response) => {

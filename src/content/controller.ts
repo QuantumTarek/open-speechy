@@ -140,6 +140,49 @@ export class ContentController {
     }
   }
 
+  /**
+   * Export the open Google Doc as HTML and hand it to the Reader view.
+   * The export uses the user's own session cookies; a failure (for example
+   * when the owner disabled downloads) routes the user to paste-to-read.
+   */
+  async readDocument(key: string): Promise<void> {
+    const docId = /\/document\/d\/([\w-]+)/u.exec(
+      this.window.location.href,
+    )?.[1];
+    const fail = (error: string) =>
+      chrome.runtime
+        .sendMessage({ type: "reader/ready", key, error })
+        .catch(() => {});
+    if (!docId) {
+      await fail("This page is not a Google Doc.");
+      return;
+    }
+    try {
+      const response = await this.window.fetch(
+        `/document/d/${docId}/export?format=html`,
+        { credentials: "include" },
+      );
+      if (!response.ok) {
+        await fail(
+          "This document could not be exported. Copy its text and paste it into the Reader view.",
+        );
+        return;
+      }
+      const html = await response.text();
+      const title =
+        this.document.title.replace(/\s+-\s+Google Docs\s*$/u, "") ||
+        "Google Doc";
+      await chrome.runtime.sendMessage({
+        type: "reader/ready",
+        key,
+        html,
+        title,
+      });
+    } catch {
+      await fail("This document could not be exported.");
+    }
+  }
+
   dispose(): void {
     chrome.runtime.onMessage.removeListener(this.#listener);
     chrome.storage.onChanged.removeListener(this.#handleStorageChange);
@@ -255,6 +298,8 @@ export class ContentController {
   handleRuntimeMessage(message: RuntimeMessage): void {
     if (message.type === "content/read-page") {
       void this.readPage();
+    } else if (message.type === "content/read-document") {
+      void this.readDocument(message.key);
     } else if (message.type === "content/read-selection") {
       void this.readSelection();
     } else if (message.type === "content/session-state") {

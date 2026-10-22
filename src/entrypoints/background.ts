@@ -196,19 +196,29 @@ export default defineBackground(() => {
       }
 
       if (value.type === "reader/ready") {
-        void chrome.storage.session.set({
-          [`openSpeechyReader:${value.key}`]: {
-            html: value.html,
-            text: value.text ?? "",
-          },
-        });
-        sendResponse({ ok: true });
-        return false;
+        void chrome.storage.session
+          .set({
+            [`openSpeechyReader:${value.key}`]: {
+              html: value.html ?? "",
+              text: value.text ?? "",
+              title: value.title ?? "",
+              error: value.error ?? "",
+            },
+          })
+          .then(() =>
+            chrome.tabs.create({
+              url: `${chrome.runtime.getURL("reader.html")}?key=${encodeURIComponent(value.key)}`,
+            }),
+          )
+          .then(() => sendResponse({ ok: true }))
+          .catch(() => sendResponse({ ok: false }));
+        return true;
       }
 
       if (
         value.type === "popup/read-page" ||
-        value.type === "popup/read-selection"
+        value.type === "popup/read-selection" ||
+        value.type === "popup/read-document"
       ) {
         void openPopupAction(value, sendResponse);
         return true;
@@ -752,7 +762,9 @@ function toOffscreenMessage(
 async function openPopupAction(
   message: Extract<
     RuntimeMessage,
-    { type: "popup/read-page" | "popup/read-selection" }
+    {
+      type: "popup/read-page" | "popup/read-selection" | "popup/read-document";
+    }
   >,
   sendResponse: (response?: unknown) => void,
 ): Promise<void> {
@@ -768,7 +780,12 @@ async function openPopupAction(
     tab.id,
     message.type === "popup/read-selection"
       ? { type: "content/read-selection" }
-      : { type: "content/read-page" },
+      : message.type === "popup/read-document"
+        ? {
+            type: "content/read-document",
+            key: crypto.randomUUID(),
+          }
+        : { type: "content/read-page" },
   );
   sendResponse(
     delivered

@@ -406,5 +406,29 @@
   },
   "pdfFileAccessHint": {
     "message": "تعذّر فتح الملف. فعّل «السماح بالوصول إلى عناوين URL للملفات» لـ Open Speechy في chrome://extensions ثم أعد تحميل علامة التبويب."
+  },
+  "readThisDocument": {
+    "message": "اقرأ هذا المستند"
+  },
+  "readerTitle": {
+    "message": "القارئ"
+  },
+  "readerPasteRead": {
+    "message": "اقرأ النص الملصق"
+  },
+  "readerPasteHint": {
+    "message": "الصق النص هنا…"
+  },
+  "readerPastePrompt": {
+    "message": "الصق نصًا لقراءته بصوت عالٍ."
+  },
+  "readerNothing": {
+    "message": "لا يوجد شيء للقراءة بعد."
+  },
+  "readerPasted": {
+    "message": "نص ملصق"
+  },
+  "readerDocFallback": {
+    "message": "تعذّر تصدير هذا المستند. انسخ نصّه والصقه هنا لقراءته."
   }
 }

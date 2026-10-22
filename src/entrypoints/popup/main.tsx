@@ -3,9 +3,14 @@ import { createRoot } from "react-dom/client";
 import { setDocumentLanguage, t } from "../../i18n";
 import "./popup.css";
 
-type PopupAction = "popup/read-page" | "popup/read-selection" | "popup/read-pdf";
+type PopupAction =
+  | "popup/read-page"
+  | "popup/read-selection"
+  | "popup/read-pdf"
+  | "popup/read-document";
 
 const PDF_URL = /^(?:https?|file|ftp):[^?#]*\.pdf(?:[?#]|$)/iu;
+const GOOGLE_DOC_URL = /^https:\/\/docs\.google\.com\/document\/d\/[\w-]+/u;
 
 function tabIsPdf(url: string | undefined): boolean {
   if (!url) return false;
@@ -25,11 +30,15 @@ function PopupPage() {
   const [busy, setBusy] = useState<PopupAction | null>(null);
   const [notice, setNotice] = useState("");
   const [pdfTab, setPdfTab] = useState(false);
+  const [docTab, setDocTab] = useState(false);
 
   useEffect(() => {
     void chrome.tabs
       .query({ active: true, lastFocusedWindow: true })
-      .then(([tab]) => setPdfTab(tabIsPdf(tab?.url)));
+      .then(([tab]) => {
+        setPdfTab(tabIsPdf(tab?.url));
+        setDocTab(GOOGLE_DOC_URL.test(tab?.url ?? ""));
+      });
   }, []);
 
   async function read(action: PopupAction): Promise<void> {
@@ -93,6 +102,16 @@ function PopupPage() {
           onClick={() => void read("popup/read-pdf")}
         >
           {t("readThisPdf", "Read this PDF")}
+        </button>
+      )}
+      {docTab && (
+        <button
+          className="popup__secondary"
+          type="button"
+          disabled={busy !== null}
+          onClick={() => void read("popup/read-document")}
+        >
+          {t("readThisDocument", "Read this document")}
         </button>
       )}
       <button

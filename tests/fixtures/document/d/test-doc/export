@@ -1,0 +1,10 @@
+<!doctype html>
+<html>
+  <body>
+    <h1>Fixture document title</h1>
+    <p>This is the first exported paragraph of the test document.</p>
+    <p>A second paragraph follows with more readable text.</p>
+    <script>window.exfiltrated = true;</script>
+    <style>p { color: red; }</style>
+  </body>
+</html>
