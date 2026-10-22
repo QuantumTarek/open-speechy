@@ -19,6 +19,7 @@ let activeSession:
       tabId: number;
       sentences: PlayableSentence[];
       voiceId: string;
+      voiceIds: Record<Lang, string>;
       lang: Lang;
       speed: number;
       currentWordIndex: number | null;
@@ -180,7 +181,12 @@ export default defineBackground(() => {
 async function startSession(
   tabId: number,
   message: Extract<RuntimeMessage, { type: "session/start" }>,
-): Promise<{ voices: VoiceInfo[]; voiceId: string; warning?: string }> {
+): Promise<{
+  voices: VoiceInfo[];
+  voiceId: string;
+  voiceIds: Record<Lang, string>;
+  warning?: string;
+}> {
   if (activeTabId !== null && activeTabId !== tabId) {
     await sendToTab(activeTabId, {
       type: "content/session-state",
@@ -197,23 +203,55 @@ async function startSession(
   const store = new SettingsStore();
   const settings = await store.load();
   const discovered = await discoverVoices(true);
-  const selection = selectVoice(lang, {
-    override: message.voiceId ?? settings.voice[lang],
-    systemVoices: discovered.system,
-    serverVoices: discovered.serverVoices,
-    serverPaired: discovered.serverPaired,
-    serverHealthy: discovered.serverHealthy,
-    localVoices: discovered.local,
-  });
+  const langs = [...new Set(message.sentences.map((sentence) => sentence.lang))];
+  const selectedVoices = new Map<Lang, VoiceInfo>();
+  const voiceIds: Record<Lang, string> = {
+    en: "kokoro:af_heart",
+    ar: "piper:ar_JO-kareem-medium",
+  };
+  let overrideUnavailable = false;
+  let systemVoiceSkippedForMixed = false;
+  for (const targetLang of langs) {
+    const override =
+      message.voiceLang === targetLang ||
+      (message.voiceLang === undefined && langs.length === 1)
+        ? message.voiceId ?? settings.voice[targetLang]
+        : settings.voice[targetLang];
+    const selection = selectVoice(targetLang, {
+      override,
+      systemVoices: discovered.system,
+      serverVoices: discovered.serverVoices,
+      serverPaired: discovered.serverPaired,
+      serverHealthy: discovered.serverHealthy,
+      localVoices: discovered.local,
+    });
+    overrideUnavailable ||= selection.overrideUnavailable;
+    let voice = selection.voice;
+    if (langs.length > 1 && voice.engineId === "system") {
+      voice = selectVoice(targetLang, {
+        override: "auto",
+        systemVoices: [],
+        serverVoices: discovered.serverVoices,
+        serverPaired: discovered.serverPaired,
+        serverHealthy: discovered.serverHealthy,
+        localVoices: discovered.local,
+      }).voice;
+      systemVoiceSkippedForMixed = true;
+    }
+    selectedVoices.set(targetLang, voice);
+    voiceIds[targetLang] = voice.id;
+  }
+  const selection = selectedVoices.get(lang);
+  if (!selection) throw new Error("No voice was selected for this session.");
   const speed = clampSpeed(message.speed ?? settings.speed);
   const useSystemVoice =
-    selection.voice.engineId === "system" &&
-    message.sentences.every((sentence) => sentence.lang === lang);
+    langs.length === 1 && selection.engineId === "system";
 
   activeSession = {
     tabId,
     sentences: message.sentences,
-    voiceId: selection.voice.id,
+    voiceId: selection.id,
+    voiceIds,
     lang,
     speed,
     currentWordIndex:
@@ -222,23 +260,29 @@ async function startSession(
       null,
   };
 
+  const overrideLang = message.voiceLang ?? lang;
   if (message.voiceId && message.voiceId !== "auto") {
-    await store.update({ voice: { [lang]: selection.voice.id } });
+    await store.update({ voice: { [overrideLang]: message.voiceId } });
   }
 
   if (
-    selection.voice.engineId === "server" &&
+    Object.values(voiceIds).some((voiceId) => voiceId.startsWith("server:")) &&
     cachedServerEngine?.engine.isReady()
   ) {
-    const engineId = selection.voice.id.split(":")[1];
-    if (engineId) {
-      await cachedServerEngine.engine.warmup([engineId]).catch(() => {});
-    }
+    const engineIds = [
+      ...new Set(
+        Object.values(voiceIds)
+          .filter((voiceId) => voiceId.startsWith("server:"))
+          .map((voiceId) => voiceId.split(":")[1])
+          .filter((engineId): engineId is string => Boolean(engineId)),
+      ),
+    ];
+    await cachedServerEngine.engine.warmup(engineIds).catch(() => {});
   }
 
   if (useSystemVoice) {
     const session = new SystemSpeechSession(
-      new SystemTtsEngine(selection.voice),
+      new SystemTtsEngine(selection),
       {
         onState(state, error) {
           void sendSessionEvent(tabId, { type: "session/state", state, error });
@@ -267,17 +311,21 @@ async function startSession(
       type: "offscreen/session-start",
       sentences: message.sentences,
       startWordIndex: message.startWordIndex,
-      voiceId: selection.voice.id,
+      voiceId: selection.id,
+      voiceIds,
       speed,
     });
   }
 
   return {
     voices: discovered.list,
-    voiceId: selection.voice.id,
-    warning: selection.overrideUnavailable
-      ? "The saved voice is unavailable. Using the best available voice."
-      : undefined,
+    voiceId: selection.id,
+    voiceIds,
+    warning: systemVoiceSkippedForMixed
+      ? "Mixed-language reading uses local or server voices to switch languages smoothly."
+      : overrideUnavailable
+        ? "The saved voice is unavailable. Using the best available voice."
+        : undefined,
   };
 }
 
@@ -350,6 +398,7 @@ async function handleSessionCommand(
       sentences: activeSession.sentences,
       startWordIndex,
       voiceId: message.voiceId,
+      voiceLang: lang,
       speed: activeSession.speed,
     });
     await new SettingsStore().update({

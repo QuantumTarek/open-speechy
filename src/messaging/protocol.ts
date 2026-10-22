@@ -29,6 +29,7 @@ export type RuntimeMessage =
       sentences: PlayableSentence[];
       startWordIndex?: number;
       voiceId?: string;
+      voiceLang?: Lang;
       speed?: number;
     }
   | {
@@ -46,6 +47,7 @@ export type RuntimeMessage =
       sentences: PlayableSentence[];
       startWordIndex?: number;
       voiceId?: string;
+      voiceIds?: Partial<Record<Lang, string>>;
       speed?: number;
     }
   | {

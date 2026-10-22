@@ -112,6 +112,57 @@ test("reads an article with deterministic highlights and leaves its DOM intact",
   }
 });
 
+test("reads mixed Arabic and English runs without changing the article", async () => {
+  test.skip(!existsSync(extensionPath), "Build the test extension first.");
+
+  const userDataDir = await mkdtemp(join(tmpdir(), "open-speechy-mixed-"));
+  let context: BrowserContext | null = null;
+
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      channel: "chromium",
+      headless: true,
+      args: [
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`,
+      ],
+    });
+    const page = await context.newPage();
+    await page.goto("/mixed.html");
+    const article = page.locator("#article");
+    const before = await article.innerHTML();
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("open-speechy-test-start")),
+    );
+    await expect(page.locator("#open-speechy-player")).toHaveCount(1);
+
+    const observed = new Set<string>();
+    const expected = ["تطبيق", "Open", "Speechy", "مرحبًا", "keeps"];
+    const changeTimes: number[] = [];
+    let previousWord = "";
+    const deadline = Date.now() + 8_000;
+    while (Date.now() < deadline && !expected.every((word) => observed.has(word))) {
+      const current = await page.evaluate(getCurrentWordText);
+      if (current) {
+        observed.add(current);
+        if (current !== previousWord) {
+          previousWord = current;
+          changeTimes.push(Date.now());
+        }
+      }
+      await page.waitForTimeout(40);
+    }
+
+    expect(expected.every((word) => observed.has(word))).toBe(true);
+    const gaps = changeTimes.slice(1).map((time, index) => time - changeTimes[index]);
+    expect(Math.max(...gaps)).toBeLessThan(300);
+    expect(await article.innerHTML()).toBe(before);
+  } finally {
+    await context?.close();
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});
+
 function getCurrentWordText(): string {
   let text = "";
   CSS.highlights.get("os-word")?.forEach((range) => {

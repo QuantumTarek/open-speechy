@@ -30,6 +30,10 @@ export class ContentController {
   #speed = 1;
   #title = "";
   #voiceId = "kokoro:af_heart";
+  #voiceIds: Record<Lang, string> = {
+    en: "kokoro:af_heart",
+    ar: "piper:ar_JO-kareem-medium",
+  };
   #voices: VoiceInfo[] = [];
   #noticeTimer: ReturnType<typeof setTimeout> | null = null;
   #highlighter: Highlighter | null = null;
@@ -123,6 +127,7 @@ export class ContentController {
             ok?: boolean;
             error?: string;
             voiceId?: string;
+            voiceIds?: Partial<Record<Lang, string>>;
             voices?: VoiceInfo[];
             warning?: string;
           }
@@ -134,6 +139,10 @@ export class ContentController {
         );
       } else if (response) {
         this.#voiceId = response.voiceId ?? this.#voiceId;
+        this.#voiceIds = {
+          ...this.#voiceIds,
+          ...response.voiceIds,
+        };
         this.#voices = response.voices ?? this.#voices;
         if (response.warning) this.#setNotice(response.warning);
         this.#render();
@@ -273,6 +282,7 @@ export class ContentController {
   }
 
   #playerProps(): PlayerBarProps {
+    const lang = this.#languageForWord(this.#currentWordIndex);
     const totalWords = this.#sentences.reduce(
       (total, sentence) => total + sentence.words.length,
       0,
@@ -287,8 +297,8 @@ export class ContentController {
       speed: this.#speed,
       title: this.#title,
       voices: this.#voices,
-      voiceId: this.#voiceId,
-      lang: this.#languageForWord(this.#currentWordIndex),
+      voiceId: this.#voiceIds[lang] ?? this.#voiceId,
+      lang,
       onControl: (action) => {
         if (action === "play" || action === "pause") {
           void this.#send({ type: "session/control", action });
@@ -303,11 +313,13 @@ export class ContentController {
       },
       onVoice: (voiceId) => {
         this.#voiceId = voiceId;
+        const voiceLang = this.#languageForWord(this.#currentWordIndex);
+        this.#voiceIds = { ...this.#voiceIds, [voiceLang]: voiceId };
         this.#render();
         void this.#send({
           type: "session/set-voice",
           voiceId,
-          lang: this.#languageForWord(this.#currentWordIndex),
+          lang: voiceLang,
         });
       },
       onClose: () => {
