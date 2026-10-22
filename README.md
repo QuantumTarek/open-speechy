@@ -40,11 +40,21 @@ pnpm lint
 The server runs only on `127.0.0.1:5123`. On macOS or Linux, install it with:
 
 ```sh
-cd server
-./install.sh
+./server/install.sh
 ```
 
-The installer creates a Python 3.11 environment with `uv`, installs the server, downloads models as configured, creates a bearer token, and prints setup instructions. Paste the token into the extension's Local server settings. Use `./uninstall.sh` to remove the environment and launch-at-login entry.
+The installer creates a Python 3.11+ environment with `uv`, installs the
+authenticated API, generates a private bearer token, and registers a macOS
+LaunchAgent. Open `http://127.0.0.1:5123/pair`, then enter its one-time code in
+the extension's Local server settings. `./server/uninstall.sh` removes the
+LaunchAgent but leaves the local token and files in place.
+
+The M0 model checks did not verify server model revisions, checksums, speed, or
+quality. The server therefore does not advertise a speech voice by default.
+Kokoro can be enabled for local testing with
+`OPEN_SPEECHY_ALLOW_UNVERIFIED_MODELS=1`, but it is not a verified release
+configuration. SILMA and Chatterbox remain disabled until their adapters and
+measurements are verified.
 
 ## Privacy and permissions
 

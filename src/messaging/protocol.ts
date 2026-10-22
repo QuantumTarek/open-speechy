@@ -5,12 +5,17 @@ export type SessionControlAction =
   "toggle" | "play" | "pause" | "next" | "previous" | "seek" | "stop";
 
 export interface SessionEvent {
-  type: "session/state" | "session/sentence-start" | "session/word";
+  type:
+    | "session/state"
+    | "session/sentence-start"
+    | "session/word"
+    | "session/notice";
   state?: SessionState;
   error?: string;
   sentenceId?: string;
   sentenceIndex?: number;
   wordIndex?: number;
+  message?: string;
   timings?: WordTiming[];
   timingSource?: "model" | "estimated" | "aligned";
   durationMs?: number;

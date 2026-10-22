@@ -24,12 +24,14 @@ export class ContentController {
   #sentences: SentencePlan[] = [];
   #state: SessionState = "idle";
   #error: string | undefined;
+  #notice: string | undefined;
   #currentWordIndex: number | null = null;
   #driftMs = 0;
   #speed = 1;
   #title = "";
   #voiceId = "kokoro:af_heart";
   #voices: VoiceInfo[] = [];
+  #noticeTimer: ReturnType<typeof setTimeout> | null = null;
   #highlighter: Highlighter | null = null;
   #clock: PlaybackClock | null = null;
   #player: MountedPlayer | null = null;
@@ -78,6 +80,7 @@ export class ContentController {
     this.#clock?.stop();
     this.#highlighter?.dispose();
     this.#player?.unmount();
+    if (this.#noticeTimer) clearTimeout(this.#noticeTimer);
   }
 
   async #start(blocks: TextBlock[], source: ReadSource): Promise<void> {
@@ -102,6 +105,7 @@ export class ContentController {
         : this.document.title || "Current article";
     this.#state = "loading";
     this.#error = undefined;
+    this.#setNotice(undefined);
     this.#currentWordIndex = null;
     this.#showPlayer(sentences);
     this.#highlighter?.setSentences(sentences);
@@ -120,6 +124,7 @@ export class ContentController {
             error?: string;
             voiceId?: string;
             voices?: VoiceInfo[];
+            warning?: string;
           }
         | undefined;
       if (response?.ok === false) {
@@ -130,6 +135,7 @@ export class ContentController {
       } else if (response) {
         this.#voiceId = response.voiceId ?? this.#voiceId;
         this.#voices = response.voices ?? this.#voices;
+        if (response.warning) this.#setNotice(response.warning);
         this.#render();
       }
     } catch (error) {
@@ -170,7 +176,10 @@ export class ContentController {
   }
 
   #handleSessionEvent(event: SessionEvent): void {
-    if (event.type === "session/state" && event.state) {
+    if (event.type === "session/notice" && event.message) {
+      this.#setNotice(event.message);
+      this.#render();
+    } else if (event.type === "session/state" && event.state) {
       this.#setState(event.state, event.error);
       this.#clock?.setPaused(event.state === "paused");
       if (event.state === "idle" || event.state === "ended") {
@@ -216,6 +225,18 @@ export class ContentController {
     this.#render();
   }
 
+  #setNotice(message: string | undefined): void {
+    if (this.#noticeTimer) clearTimeout(this.#noticeTimer);
+    this.#notice = message;
+    this.#noticeTimer = message
+      ? setTimeout(() => {
+          this.#notice = undefined;
+          this.#noticeTimer = null;
+          this.#render();
+        }, 5_000)
+      : null;
+  }
+
   async #control(
     action: "toggle" | "previous" | "next" | "stop",
   ): Promise<void> {
@@ -259,6 +280,7 @@ export class ContentController {
     return {
       status: this.#state,
       error: this.#error,
+      notice: this.#notice,
       totalWords,
       currentWordIndex: this.#currentWordIndex,
       driftMs: this.#driftMs,

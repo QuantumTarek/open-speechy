@@ -1,5 +1,6 @@
 import { mapSystemVoice, SystemTtsEngine } from "../engines/system";
 import { selectVoice } from "../engines/router";
+import { ServerEngine } from "../engines/server";
 import type { Lang, VoiceInfo } from "../engines/types";
 import { browserVoiceCatalog } from "../engines/voice-catalog";
 import { SettingsStore } from "../settings/store";
@@ -10,6 +11,9 @@ import { defineBackground } from "wxt/utils/define-background";
 
 let activeTabId: number | null = null;
 let activeSystemSession: SystemSpeechSession | null = null;
+let cachedServerEngine:
+  | { url: string; token: string; engine: ServerEngine }
+  | null = null;
 let activeSession:
   | {
       tabId: number;
@@ -192,13 +196,13 @@ async function startSession(
   const lang = message.sentences[0]?.lang ?? "en";
   const store = new SettingsStore();
   const settings = await store.load();
-  const discovered = await discoverVoices();
+  const discovered = await discoverVoices(true);
   const selection = selectVoice(lang, {
     override: message.voiceId ?? settings.voice[lang],
     systemVoices: discovered.system,
-    serverVoices: [],
-    serverPaired: false,
-    serverHealthy: false,
+    serverVoices: discovered.serverVoices,
+    serverPaired: discovered.serverPaired,
+    serverHealthy: discovered.serverHealthy,
     localVoices: discovered.local,
   });
   const speed = clampSpeed(message.speed ?? settings.speed);
@@ -220,6 +224,16 @@ async function startSession(
 
   if (message.voiceId && message.voiceId !== "auto") {
     await store.update({ voice: { [lang]: selection.voice.id } });
+  }
+
+  if (
+    selection.voice.engineId === "server" &&
+    cachedServerEngine?.engine.isReady()
+  ) {
+    const engineId = selection.voice.id.split(":")[1];
+    if (engineId) {
+      await cachedServerEngine.engine.warmup([engineId]).catch(() => {});
+    }
   }
 
   if (useSystemVoice) {
@@ -403,10 +417,15 @@ async function sendSessionEvent(
   await sendToTab(tabId, { type: "session/event", event });
 }
 
-async function discoverVoices(): Promise<{
+async function discoverVoices(
+  refreshServer = false,
+): Promise<{
   system: Array<{ voice: VoiceInfo; eventTypes: string[] }>;
   local: VoiceInfo[];
   list: VoiceInfo[];
+  serverVoices: VoiceInfo[];
+  serverPaired: boolean;
+  serverHealthy: boolean;
 }> {
   let chromeVoices: chrome.tts.TtsVoice[] = [];
   try {
@@ -419,10 +438,40 @@ async function discoverVoices(): Promise<{
     return voice ? [{ voice, eventTypes: raw.eventTypes ?? [] }] : [];
   });
   const local = browserVoiceCatalog();
+  const settings = await new SettingsStore().load();
+  let serverVoices: VoiceInfo[] = [];
+  let serverHealthy = false;
+  if (settings.server.enabled && settings.server.token) {
+    try {
+      if (
+        !cachedServerEngine ||
+        cachedServerEngine.url !== settings.server.url ||
+        cachedServerEngine.token !== settings.server.token
+      ) {
+        cachedServerEngine = {
+          url: settings.server.url,
+          token: settings.server.token,
+          engine: new ServerEngine(settings.server.url, settings.server.token),
+        };
+      }
+      serverHealthy = Boolean(
+        await cachedServerEngine.engine.health(refreshServer),
+      );
+      if (serverHealthy) {
+        serverVoices = await cachedServerEngine.engine.listVoices();
+      }
+    } catch {
+      serverVoices = [];
+      serverHealthy = false;
+    }
+  }
   return {
     system,
     local,
-    list: [...system.map(({ voice }) => voice), ...local],
+    serverVoices,
+    serverPaired: Boolean(settings.server.token),
+    serverHealthy,
+    list: [...system.map(({ voice }) => voice), ...serverVoices, ...local],
   };
 }
 

@@ -65,17 +65,35 @@ export interface SettingsStorage {
 }
 
 export class SettingsStore {
-  readonly #storage: SettingsStorage;
+  readonly #syncStorage: SettingsStorage;
+  readonly #localStorage: SettingsStorage;
   #current: AppSettings | null = null;
 
-  constructor(storage: SettingsStorage = chrome.storage.sync) {
-    this.#storage = storage;
+  constructor(
+    syncStorage: SettingsStorage = chrome.storage.sync,
+    localStorage: SettingsStorage = chrome.storage.local,
+  ) {
+    this.#syncStorage = syncStorage;
+    this.#localStorage = localStorage;
   }
 
   async load(): Promise<AppSettings> {
     if (this.#current) return structuredClone(this.#current);
-    const stored = await this.#storage.get(null);
-    this.#current = mergeSettings(stored);
+    const [stored, local] = await Promise.all([
+      this.#syncStorage.get(null),
+      this.#localStorage.get("openSpeechyServerToken"),
+    ]);
+    const localToken = local.openSpeechyServerToken;
+    this.#current = mergeSettings({
+      ...stored,
+      server: {
+        ...(stored.server as Partial<AppSettings["server"]> | undefined),
+        token:
+          typeof localToken === "string"
+            ? localToken
+            : getStoredServerToken(stored.server),
+      },
+    });
     return structuredClone(this.#current);
   }
 
@@ -90,9 +108,27 @@ export class SettingsStore {
       arabic: { ...current.arabic, ...patch.arabic },
       server: { ...current.server, ...patch.server },
     });
-    await this.#storage.set(this.#current as unknown as Record<string, unknown>);
+    const syncedSettings = {
+      ...this.#current,
+      server: { ...this.#current.server, token: "" },
+    };
+    await Promise.all([
+      this.#syncStorage.set(
+        syncedSettings as unknown as Record<string, unknown>,
+      ),
+      this.#localStorage.set({
+        openSpeechyServerToken: this.#current.server.token,
+      }),
+    ]);
     return structuredClone(this.#current);
   }
+}
+
+function getStoredServerToken(value: unknown): string {
+  if (typeof value !== "object" || value === null || !("token" in value)) {
+    return "";
+  }
+  return typeof value.token === "string" ? value.token : "";
 }
 
 function mergeSettings(value: Record<string, unknown>): AppSettings {

@@ -6,6 +6,7 @@ import type { SessionState } from "../playback/session";
 export interface PlayerBarProps {
   status: SessionState;
   error?: string;
+  notice?: string;
   totalWords: number;
   currentWordIndex: number | null;
   driftMs: number;
@@ -64,6 +65,7 @@ export function PlayerBar(props: PlayerBarProps) {
         <strong className="player__title">{props.title}</strong>
         <span className="player__status" aria-live="polite">
           {props.error ??
+            props.notice ??
             (busy
               ? "Preparing voice"
               : props.totalWords > 0

@@ -1,5 +1,10 @@
 import { FakeEngine, isTestEngineEnabled } from "../../engines/fake";
+import { fallbackVoiceId, ServerFallbackEngine } from "../../engines/fallback";
 import { KokoroEngine } from "../../engines/kokoro";
+import { ServerEngine } from "../../engines/server";
+import type { TtsEngine } from "../../engines/types";
+import type { SessionEvent } from "../../messaging/protocol";
+import { SettingsStore } from "../../settings/store";
 import { FakeAudioPlayer, WebAudioPlayer } from "../../playback/audio-player";
 import { SessionQueue, type PlayableSentence } from "../../playback/session";
 import {
@@ -58,7 +63,21 @@ async function startSession(
   message: Extract<RuntimeMessage, { type: "offscreen/session-start" }>,
 ): Promise<void> {
   await queue?.dispose();
-  const engine = isTestEngineEnabled() ? new FakeEngine() : new KokoroEngine();
+  let engine: TtsEngine;
+  if (isTestEngineEnabled()) {
+    engine = new FakeEngine();
+  } else if (message.voiceId?.startsWith("server:")) {
+    const settings = await new SettingsStore().load();
+    const fallback = new KokoroEngine();
+    engine = new ServerFallbackEngine(
+      new ServerEngine(settings.server.url, settings.server.token),
+      fallback,
+      fallbackVoiceId(message.sentences[0]?.lang ?? "en"),
+      (notice) => void emit({ type: "session/notice", message: notice }),
+    );
+  } else {
+    engine = new KokoroEngine();
+  }
   const audio = isTestEngineEnabled()
     ? new FakeAudioPlayer()
     : new WebAudioPlayer();
@@ -97,18 +116,7 @@ async function handleControl(
   }
 }
 
-async function emit(event: {
-  type: "session/state" | "session/sentence-start";
-  state?: "idle" | "loading" | "playing" | "paused" | "ended" | "error";
-  error?: string;
-  sentenceId?: string;
-  sentenceIndex?: number;
-  timings?: import("../../engines/types").WordTiming[];
-  timingSource?: "model" | "estimated" | "aligned";
-  durationMs?: number;
-  rate?: number;
-  startedAtPerf?: number;
-}): Promise<void> {
+async function emit(event: SessionEvent): Promise<void> {
   const message: RuntimeMessage = {
     type: "offscreen/session-event",
     event,
