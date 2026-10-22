@@ -62,5 +62,13 @@
   hyphenation) and `sample-ar.pdf` (visual-order presentation forms) cover the
   pipeline in e2e; a real 2-column paper and real Arabic PDFs are still manual
   checks.
-- M7 and M8 remain in progress. `docs/qa.md` lists the manual checks that
-  still need a browser, local models, or a native Arabic speaker.
+- M7 adds the Reader view (reader.html) for sanitized HTML and pasted
+  text, and the Google Docs export flow: "Read this document" fetches the
+  doc's export with the user session into the reader, with a paste
+  fallback when export is disabled. e2e covers both paths.
+- M8: production build and `pnpm zip` verified (26 MB store zip),
+  privacy policy written, store screenshots generated, server version
+  update notice wired in options, README install instructions added.
+  A real store listing, real Google Docs check, and tagged server release
+  remain manual steps. `docs/qa.md` lists the manual checks that still
+  need a browser, local models, or a native Arabic speaker.

@@ -111,3 +111,19 @@ runtime `word` events. The M0 spike did not measure model timing drift,
 system-voice `charIndex` accuracy, or Arabic pronunciation. See
 [docs/spikes.md](docs/spikes.md); no timing or pronunciation target is claimed
 yet.
+
+## Packaging and install
+
+- **Unpacked:** `pnpm build` writes `.output/chrome-mv3`; load it via
+  chrome://extensions → Developer mode → Load unpacked.
+- **Zip:** `pnpm zip` produces `.output/open-speechy-<version>-chrome.zip`
+  for Chrome Web Store upload.
+- **Companion server:** `./server/install.sh` (macOS/Linux) or
+  `server/install.ps1` (Windows) sets up the loopback API, then open
+  `http://127.0.0.1:5123/pair` and enter its code in Options → Local server.
+  Release a server update by tagging `server-vX.Y.Z`; the extension shows
+  "Server update available" when `/health.version` is older than the
+  version this build expects (`EXPECTED_SERVER_VERSION`).
+- Store screenshots live in `store/screenshots` (regenerate with
+  `node tools/store-screenshots.mjs` after a production build).
+- Privacy policy for the store listing: [docs/privacy-policy.md](docs/privacy-policy.md).

@@ -519,3 +519,17 @@ function isQuality(
     value === "compact"
   );
 }
+
+/** The server version this extension build expects. */
+export const EXPECTED_SERVER_VERSION = "0.1.0";
+
+/** True when the paired server reports a version older than expected. */
+export function serverUpdateAvailable(version: string): boolean {
+  const parse = (value: string) =>
+    value.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const [haveMajor, haveMinor, havePatch] = parse(version);
+  const [wantMajor, wantMinor, wantPatch] = parse(EXPECTED_SERVER_VERSION);
+  if (haveMajor !== wantMajor) return haveMajor < wantMajor;
+  if (haveMinor !== wantMinor) return haveMinor < wantMinor;
+  return havePatch < wantPatch;
+}

@@ -430,5 +430,8 @@
   },
   "readerDocFallback": {
     "message": "This document could not be exported. Copy its text and paste it here to read it."
+  },
+  "serverUpdate": {
+    "message": "Server update available. Run the latest installer to update."
   }
 }

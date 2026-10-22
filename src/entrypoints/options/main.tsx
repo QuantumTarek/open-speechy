@@ -7,7 +7,10 @@ import {
   type AppSettings,
   type SettingsPatch,
 } from "../../settings/store";
-import { normalizeServerUrl } from "../../engines/server";
+import {
+  normalizeServerUrl,
+  serverUpdateAvailable,
+} from "../../engines/server";
 import { MODEL_CATALOG, MODEL_DESCRIPTORS } from "../../models/catalog";
 import { ModelManager, type ModelProgress } from "../../models/manager";
 import { setDocumentLanguage, t } from "../../i18n";
@@ -37,6 +40,7 @@ function OptionsPage() {
   const [serverUrl, setServerUrl] = useState(DEFAULT_SETTINGS.server.url);
   const [pairCode, setPairCode] = useState("");
   const [serverBusy, setServerBusy] = useState(false);
+  const [serverOutdated, setServerOutdated] = useState(false);
   const [modelStates, setModelStates] = useState<Record<string, ModelViewState>>(
     {},
   );
@@ -131,6 +135,9 @@ function OptionsPage() {
       .then(([loaded, response]) => {
         setSettings(loaded);
         setServerUrl(loaded.server.url);
+        if (loaded.server.token) {
+          void checkServerVersion(loaded.server.url, loaded.server.token);
+        }
         if (response.ok && response.voices) setVoices(response.voices);
         else setNotice(response.error ?? t("voiceDiscoveryFailed", "Voice discovery failed."));
         void refreshModels();
@@ -198,6 +205,7 @@ function OptionsPage() {
       });
       setSettings(updated);
       setPairCode("");
+      void checkServerVersion(url, result.token);
       await refreshVoices();
       setNotice(t("serverPaired", "Paired on this device."));
     } catch (error) {
@@ -208,6 +216,24 @@ function OptionsPage() {
       );
     } finally {
       setServerBusy(false);
+    }
+  }
+
+  async function checkServerVersion(
+    url: string,
+    token: string,
+  ): Promise<void> {
+    try {
+      const response = await fetch(`${normalizeServerUrl(url)}/health`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const health = (await response.json()) as { version?: string };
+      setServerOutdated(
+        typeof health.version === "string" &&
+          serverUpdateAvailable(health.version),
+      );
+    } catch {
+      setServerOutdated(false);
     }
   }
 
@@ -437,7 +463,12 @@ function OptionsPage() {
                   : t("notPaired", "Not paired")}
               </strong>
               <p>
-                {settings.server.token
+                {serverOutdated
+                  ? t(
+                      "serverUpdate",
+                      "Server update available. Run the latest installer to update.",
+                    )
+                  : settings.server.token
                   ? t("tokenLocal", "The token is held in local extension storage.")
                   : t(
                       "pairCodeHelp",
