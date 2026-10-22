@@ -56,13 +56,18 @@ export interface TtsEngine {
 }
 
 export interface StreamingSpeechHandlers {
-  onEvent(event: chrome.tts.TtsEvent): void;
+  onStart(): void;
+  onWord(wordIndex: number, event: chrome.tts.TtsEvent): void;
+  onEnd(): void;
   onError(error: Error): void;
 }
 
 export interface StreamingSpeechEngine {
   id: 'system';
-  speak(req: SynthesisRequest, handlers: StreamingSpeechHandlers): void;
+  speak(
+    req: SynthesisRequest,
+    handlers: StreamingSpeechHandlers,
+  ): void;
   pause(): void;
   resume(): void;
   stop(): void;
