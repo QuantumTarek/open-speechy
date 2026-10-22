@@ -53,3 +53,15 @@ Speech synthesis runs in the browser or in the paired local server. Page text is
 The extension requests access to page content for article extraction and highlighting, storage for settings, offscreen audio playback, TTS voices, context menus and keyboard commands. It contacts Hugging Face only to download the explicitly listed model files, Google Docs only after a user asks to read a document, and the configured local server when paired.
 
 See [docs/STATUS.md](docs/STATUS.md) for milestone status and [docs/qa.md](docs/qa.md) for checks that still need a person.
+
+## Current status
+
+The English article flow, sentence queue, deterministic test engine, and CSS
+Custom Highlight integration are in place. Run `pnpm test:e2e` to exercise the
+fixture flow in Playwright's bundled Chromium.
+
+Real Kokoro downloads remain disabled until a pinned model revision and audited
+SHA-256 manifest are available. The M0 spike did not measure model timings,
+system-voice events, Arabic pronunciation, or the companion-server engines.
+Those checks are recorded in [docs/spikes.md](docs/spikes.md); no speed or
+pronunciation target is claimed yet.

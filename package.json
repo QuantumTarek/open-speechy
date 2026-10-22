@@ -10,7 +10,7 @@
     "zip": "pnpm run build && wxt zip",
     "copy:ort": "node tools/copy-ort-assets.mjs",
     "test": "vitest run",
-    "test:e2e": "pnpm run build:test && playwright test",
+    "test:e2e": "PLAYWRIGHT_BROWSERS_PATH=./.playwright pnpm run build:test && PLAYWRIGHT_BROWSERS_PATH=./.playwright playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write ."

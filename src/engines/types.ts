@@ -31,6 +31,7 @@ export interface SynthesisRequest {
   sentenceId: string;
   lang: Lang;
   voiceId: string;
+  wordIndices: number[];
   words: string[];
   text: string;
   speed: number;

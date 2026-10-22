@@ -9,6 +9,9 @@ export default defineConfig({
     description: 'Read web text aloud with local English and Arabic voices.',
     version: '0.1.0',
     minimum_chrome_version: '116',
+    action: {
+      default_title: 'Read with Open Speechy',
+    },
     permissions: [
       'activeTab',
       'contextMenus',

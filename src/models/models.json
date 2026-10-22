@@ -1,0 +1,14 @@
+{
+  "models": [
+    {
+      "id": "kokoro-en-q8",
+      "engine": "kokoro",
+      "lang": "en",
+      "modelId": "onnx-community/Kokoro-82M-v1.0-ONNX",
+      "revision": null,
+      "license": "Apache-2.0",
+      "verified": false,
+      "files": []
+    }
+  ]
+}
