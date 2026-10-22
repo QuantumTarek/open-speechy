@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open Speechy — PDF</title>
+  </head>
+  <body>
+    <header id="pdf-toolbar" aria-hidden="true">
+      <span id="pdf-title" class="pdf-toolbar__title">PDF</span>
+      <div class="pdf-toolbar__actions">
+        <button id="pdf-read" type="button">Read</button>
+        <label class="pdf-toolbar__open">
+          Open file
+          <input id="pdf-open-input" type="file" accept="application/pdf,.pdf" />
+        </label>
+      </div>
+    </header>
+    <main id="pdf-content">
+      <div id="pdf-empty" class="pdf-empty">
+        <p id="pdf-status">Loading PDF…</p>
+        <p class="pdf-empty__hint">
+          Drop a PDF file here, or use Open file. To read local files directly,
+          enable “Allow access to file URLs” for Open Speechy in
+          chrome://extensions.
+        </p>
+      </div>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

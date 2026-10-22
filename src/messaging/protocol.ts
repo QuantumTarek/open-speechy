@@ -60,10 +60,21 @@ export type RuntimeMessage =
   | { type: "offscreen/session-speed"; speed: number }
   | { type: "offscreen/session-voice"; voiceId: string }
   | { type: "offscreen/session-event"; event: SessionEvent }
-  | { type: "session/event"; event: SessionEvent }
+  | {
+      type: "session/event";
+      event: SessionEvent;
+      // Set when broadcast to an extension page (pdf-viewer, reader) that
+      // tabs.sendMessage cannot address directly.
+      targetTabId?: number;
+    }
   | { type: "content/read-page" }
   | { type: "content/read-selection" }
-  | { type: "content/session-state"; state: SessionState; error?: string }
+  | {
+      type: "content/session-state";
+      state: SessionState;
+      error?: string;
+      targetTabId?: number;
+    }
   | { type: "popup/get-active-state" }
   | { type: "popup/read-page" }
   | { type: "popup/read-selection" }

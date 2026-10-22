@@ -27,6 +27,37 @@ let activeSession:
     }
   | null = null;
 
+const PDF_RULE_ID = 4100;
+
+function pdfViewerUrl(fileUrl: string): string {
+  return `${chrome.runtime.getURL("pdf-viewer.html")}?file=${encodeURIComponent(fileUrl)}`;
+}
+
+async function updatePdfInterceptRule(): Promise<void> {
+  const settings = await new SettingsStore().load();
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: [PDF_RULE_ID],
+    addRules: settings.pdf.intercept
+      ? [
+          {
+            id: PDF_RULE_ID,
+            priority: 1,
+            action: {
+              type: "redirect",
+              redirect: {
+                regexSubstitution: `${chrome.runtime.getURL("pdf-viewer.html")}?file=\\0`,
+              },
+            },
+            condition: {
+              regexFilter: "^[^?#]+\\.pdf([?#].*)?$",
+              resourceTypes: ["main_frame"],
+            },
+          },
+        ]
+      : [],
+  });
+}
+
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.removeAll(() => {
@@ -41,6 +72,15 @@ export default defineBackground(() => {
         contexts: ["selection"],
       });
     });
+    void updatePdfInterceptRule();
+  });
+
+  chrome.runtime.onStartup.addListener(() => {
+    void updatePdfInterceptRule();
+  });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === "sync" && changes.pdf) void updatePdfInterceptRule();
   });
 
   chrome.action.onClicked.addListener((tab) => {
@@ -172,6 +212,27 @@ export default defineBackground(() => {
       ) {
         void openPopupAction(value, sendResponse);
         return true;
+      }
+
+      if (value.type === "popup/read-pdf") {
+        void openPdfForActiveTab()
+          .then((result) => sendResponse(result))
+          .catch((error: unknown) =>
+            sendResponse({
+              ok: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Could not open the PDF viewer.",
+            }),
+          );
+        return true;
+      }
+
+      if (value.type === "pdf/open") {
+        void chrome.tabs.create({ url: pdfViewerUrl(value.url) });
+        sendResponse({ ok: true });
+        return false;
       }
 
       return false;
@@ -356,8 +417,50 @@ async function sendToTab(
     return true;
   } catch {
     // Restricted pages such as chrome:// cannot host the content script.
+    // Extension pages (pdf-viewer, reader) may also be unreachable through
+    // tabs.sendMessage on some Chrome versions; broadcast a copy they can
+    // pick up by tab id.
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.url?.startsWith(chrome.runtime.getURL(""))) {
+        await chrome.runtime.sendMessage({ ...message, targetTabId: tabId });
+        return true;
+      }
+    } catch {
+      // Fall through to undelivered.
+    }
     return false;
   }
+}
+
+const PDF_URL = /^(?:https?|file|ftp):[^?#]*\.pdf(?:[?#]|$)/iu;
+
+function pdfUrlForTab(tab: chrome.tabs.Tab | undefined): string | null {
+  if (!tab?.url || tab.url.startsWith(chrome.runtime.getURL(""))) return null;
+  if (PDF_URL.test(tab.url)) return tab.url;
+  if (tab.url.startsWith("chrome-extension://")) {
+    // Chrome's built-in PDF viewer keeps the source URL in ?src=
+    try {
+      const source = new URL(tab.url).searchParams.get("src");
+      if (source && PDF_URL.test(source)) return source;
+    } catch {
+      // Not a parseable viewer URL.
+    }
+  }
+  return null;
+}
+
+async function openPdfForActiveTab(): Promise<{ ok: boolean; error?: string }> {
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+  const url = pdfUrlForTab(tab);
+  if (!url) {
+    return { ok: false, error: "The active tab is not a PDF." };
+  }
+  await chrome.tabs.create({ url: pdfViewerUrl(url) });
+  return { ok: true };
 }
 
 async function forwardSessionEvent(

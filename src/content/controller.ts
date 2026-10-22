@@ -72,8 +72,8 @@ export class ContentController {
     private readonly window: Window,
   ) {
     this.#listener = (message) => {
-      if (!isRuntimeMessage(message)) return;
-      this.#handleRuntimeMessage(message);
+      if (!isRuntimeMessage(message) || "targetTabId" in message) return;
+      this.handleRuntimeMessage(message);
     };
     chrome.runtime.onMessage.addListener(this.#listener);
     this.#selectionChip = new SelectionChip(
@@ -124,6 +124,20 @@ export class ContentController {
     const selection = this.window.getSelection();
     const blocks = selection ? extractSelectionBlocks(selection) : [];
     await this.#start(blocks, "selection");
+  }
+
+  /**
+   * Read blocks built by an extension page (pdf-viewer, reader) whose DOM
+   * text is already in reading order with its own source pieces.
+   */
+  async readExtracted(blocks: TextBlock[], title: string): Promise<void> {
+    await this.#settingsReady;
+    this.#readRoot = null;
+    await this.#start(blocks, "article");
+    if (this.#sentences.length > 0) {
+      this.#title = title;
+      this.#render();
+    }
   }
 
   dispose(): void {
@@ -233,7 +247,12 @@ export class ContentController {
     this.#render();
   }
 
-  #handleRuntimeMessage(message: RuntimeMessage): void {
+  /**
+   * Entry for messages the page did not receive through the constructor's
+   * runtime listener — extension pages (pdf-viewer, reader) get broadcast
+   * copies addressed by `targetTabId` and forward them here.
+   */
+  handleRuntimeMessage(message: RuntimeMessage): void {
     if (message.type === "content/read-page") {
       void this.readPage();
     } else if (message.type === "content/read-selection") {

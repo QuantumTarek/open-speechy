@@ -90,8 +90,15 @@ in place. The toolbar popup starts article and selection reading, and a
 selection chip appears beside long selections. Arabic number normalization,
 offset-preserving word mapping, and mixed English/Arabic word runs are also
 covered by unit tests. Mixed sentences route by language to the selected local
-or server engine. Run `pnpm test:e2e` to exercise article, mixed-script, and
-selection reading in Playwright's bundled Chromium.
+or server engine. The PDF.js viewer renders pages with a transparent text
+layer, rebuilds reading order through column detection and paragraph joining,
+drops running headers/footers and page numbers, de-hyphenates line ends, and
+repairs visual-order Arabic text (presentation forms reversed to logical
+order). PDF navigations ending in `.pdf` redirect into the viewer while the
+PDF interception setting is on; the popup also offers "Read this PDF" and the
+viewer accepts drag-and-drop and file-open for local documents. Run
+`pnpm test:e2e` to exercise article, mixed-script, selection, and PDF reading
+in Playwright's bundled Chromium.
 
 Kokoro, Piper Kareem, and libtashkeel have pinned revisions and SHA-256
 manifests in `src/models/models.json`; each downloads only when selected.

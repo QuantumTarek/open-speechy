@@ -1,0 +1,122 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    "Noto Naskh Arabic",
+    "Geeza Pro",
+    sans-serif;
+  background: #3c4043;
+  color: #1c2529;
+}
+
+#pdf-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #23262b;
+  color: #e8eaed;
+  font-size: 13px;
+}
+
+.pdf-toolbar__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60vw;
+}
+
+.pdf-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#pdf-toolbar button,
+.pdf-toolbar__open {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+#pdf-toolbar button:hover,
+.pdf-toolbar__open:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.pdf-toolbar__open input {
+  display: none;
+}
+
+#pdf-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 16px 64px;
+}
+
+.pdf-empty {
+  margin-top: 20vh;
+  max-width: 520px;
+  text-align: center;
+  color: #e8eaed;
+}
+
+.pdf-empty__hint {
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.75;
+}
+
+.pdf-page {
+  position: relative;
+  background: #ffffff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.pdf-page canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.pdf-block {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+}
+
+.pdf-line {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  line-height: 1;
+  transform-origin: 0 0;
+  cursor: text;
+}

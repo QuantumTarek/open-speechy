@@ -1,13 +1,36 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { setDocumentLanguage, t } from "../../i18n";
 import "./popup.css";
 
-type PopupAction = "popup/read-page" | "popup/read-selection";
+type PopupAction = "popup/read-page" | "popup/read-selection" | "popup/read-pdf";
+
+const PDF_URL = /^(?:https?|file|ftp):[^?#]*\.pdf(?:[?#]|$)/iu;
+
+function tabIsPdf(url: string | undefined): boolean {
+  if (!url) return false;
+  if (PDF_URL.test(url)) return true;
+  if (url.startsWith("chrome-extension://")) {
+    try {
+      const source = new URL(url).searchParams.get("src");
+      return Boolean(source && PDF_URL.test(source));
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
 
 function PopupPage() {
   const [busy, setBusy] = useState<PopupAction | null>(null);
   const [notice, setNotice] = useState("");
+  const [pdfTab, setPdfTab] = useState(false);
+
+  useEffect(() => {
+    void chrome.tabs
+      .query({ active: true, lastFocusedWindow: true })
+      .then(([tab]) => setPdfTab(tabIsPdf(tab?.url)));
+  }, []);
 
   async function read(action: PopupAction): Promise<void> {
     setBusy(action);
@@ -62,6 +85,16 @@ function PopupPage() {
       >
         {t("readSelectedText", "Read selected text")}
       </button>
+      {pdfTab && (
+        <button
+          className="popup__secondary"
+          type="button"
+          disabled={busy !== null}
+          onClick={() => void read("popup/read-pdf")}
+        >
+          {t("readThisPdf", "Read this PDF")}
+        </button>
+      )}
       <button
         className="popup__settings"
         type="button"

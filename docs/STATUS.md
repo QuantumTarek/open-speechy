@@ -48,6 +48,19 @@
   Arabic PDF ordering checks, and native-speaker pronunciation ratings. The
   server adapters and mixed-language routing are implemented, but real model
   gap timings and pronunciation results are not claimed.
-- M5.2 is implemented. M6 through M8 remain in progress. `docs/qa.md` lists
-  the manual checks that still need a browser, local models, or a native
-  Arabic speaker.
+- M5.2 is implemented.
+- M6 adds the PDF.js viewer (`pdf-viewer.html`): lazy canvas rendering with a
+  transparent positioned text layer, line grouping, up-to-three-column
+  detection with RTL column order for Arabic pages, paragraph joining by
+  vertical gap, running header/footer and page-number filtering, English
+  line-end de-hyphenation, and Arabic presentation-form folding plus
+  visual-order run reversal. A `declarativeNetRequest` rule redirects
+  `.pdf` main-frame navigations into the viewer while `pdf.intercept` is on,
+  and the popup shows "Read this PDF" for PDF tabs. Session events reach
+  extension pages through `tabs.sendMessage` with a `targetTabId` broadcast
+  fallback. Generated `sample-en.pdf` (two columns, two pages, boilerplate,
+  hyphenation) and `sample-ar.pdf` (visual-order presentation forms) cover the
+  pipeline in e2e; a real 2-column paper and real Arabic PDFs are still manual
+  checks.
+- M7 and M8 remain in progress. `docs/qa.md` lists the manual checks that
+  still need a browser, local models, or a native Arabic speaker.

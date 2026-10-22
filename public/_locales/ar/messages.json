@@ -1,131 +1,410 @@
 {
-  "appName": { "message": "أوبن سبيشي" },
-  "extensionDescription": { "message": "اقرأ نصوص الويب بصوت محلي بالإنجليزية والعربية." },
-  "actionTitle": { "message": "اقرأ باستخدام أوبن سبيشي" },
-  "readPage": { "message": "اقرأ هذه الصفحة" },
-  "readSelectionMenu": { "message": "اقرأ التحديد" },
-  "popupHeadline": { "message": "اقرأ هذه الصفحة." },
-  "readArticle": { "message": "اقرأ المقال" },
-  "preparingReader": { "message": "جارٍ تجهيز القارئ..." },
-  "readSelectedText": { "message": "اقرأ النص المحدد" },
-  "voicesAndSettings": { "message": "الأصوات والإعدادات" },
-  "localPrivacy": { "message": "يبقى نص الصفحة على هذا الجهاز." },
-  "restrictedPageError": { "message": "لا تسمح هذه الصفحة لأوبن سبيشي بقراءة محتواها." },
-  "selectionChipRead": { "message": "▶ اقرأ التحديد" },
-  "selectionChipLabel": { "message": "اقرأ النص المحدد" },
-  "playerLabel": { "message": "مشغل أوبن سبيشي" },
-  "previousSentence": { "message": "الجملة السابقة" },
-  "play": { "message": "تشغيل" },
-  "pause": { "message": "إيقاف مؤقت" },
-  "nextSentence": { "message": "الجملة التالية" },
-  "readingSpeed": { "message": "سرعة القراءة" },
-  "readingVoice": { "message": "صوت القراءة" },
-  "closeReader": { "message": "إغلاق القارئ" },
-  "preparingVoice": { "message": "جارٍ تجهيز الصوت" },
-  "wordProgress": { "message": "الكلمة $1 من $2" },
-  "readyToRead": { "message": "جاهز للقراءة" },
-  "jumpToCurrent": { "message": "انتقل إلى الموضع الحالي" },
-  "voiceOnDevice": { "message": "على الجهاز" },
-  "voiceLocalServer": { "message": "خادم محلي" },
-  "voiceNoWordEvents": { "message": "$1، بلا أحداث للكلمات" },
-  "optionsKicker": { "message": "أوبن سبيشي / صوت محلي" },
-  "optionsTitle": { "message": "أصوات تناسبك." },
-  "optionsLede": { "message": "اختر صوتًا لكل لغة. يبقى نص الصفحة في هذا المتصفح، وتتولى الأصوات المحلية قراءته." },
-  "voicePreference": { "message": "تفضيل الصوت" },
-  "autoVoiceHelp": { "message": "يختار الوضع التلقائي أولًا صوت نظام محليًا من فئة Premium أو Enhanced." },
-  "languageEnglish": { "message": "الإنجليزية" },
-  "languageArabic": { "message": "العربية" },
-  "automatic": { "message": "تلقائي" },
-  "modelNotInstalled": { "message": "النموذج غير مثبت" },
-  "macOS": { "message": "على macOS" },
-  "macVoiceHelp": { "message": "للحصول على صوت نظام أفضل، افتح إعدادات النظام ← تسهيلات الاستخدام ← المحتوى المنطوق ← صوت النظام ← إدارة الأصوات. نزّل صوتًا إنجليزيًا Premium أو صوتًا عربيًا Enhanced، ثم أعد تشغيل Chrome. لا يتيح Chrome أصوات Siri." },
-  "auditionVoices": { "message": "استمع إلى الأصوات" },
-  "auditionHelp": { "message": "يقرأ كل صوت نظام متاح العينة القصيرة نفسها." },
-  "playingSample": { "message": "جارٍ التشغيل..." },
-  "playSample": { "message": "شغّل العينة" },
-  "noVoices": { "message": "لم يعثر Chrome على أصوات." },
-  "serverHeading": { "message": "الخادم المحلي المرافق" },
-  "serverDescription": { "message": "تتم معالجة الصوت الاختيارية على 127.0.0.1." },
-  "serverUse": { "message": "استخدم الخادم المحلي عند الاقتران" },
-  "serverUseHelp": { "message": "أوقف هذا الخيار لاستخدام أصوات المتصفح والنظام فقط." },
-  "pairedDevice": { "message": "مقترن على هذا الجهاز" },
-  "notPaired": { "message": "غير مقترن" },
-  "tokenLocal": { "message": "يُحفظ الرمز في مساحة التخزين المحلية للإضافة." },
-  "pairCodeHelp": { "message": "افتح صفحة الاقتران المحلية ثم أدخل الرمز لمرة واحدة." },
-  "serverAddress": { "message": "عنوان الخادم" },
-  "openPairing": { "message": "افتح صفحة الاقتران" },
-  "oneTimeCode": { "message": "رمز لمرة واحدة" },
-  "pairServer": { "message": "اقرن الخادم" },
-  "connecting": { "message": "جارٍ الاتصال..." },
-  "serverVoicesReady": { "message": "أصوات الخادم جاهزة." },
-  "serverNoVoices": { "message": "تم الاقتران، لكن لا يتوفر صوت على الخادم." },
-  "disconnect": { "message": "إلغاء الاتصال" },
-  "serverFootnote": { "message": "يقبل الخادم الطلبات من المتصفح المقترن فقط. تُنزّل النماذج من إصدارات مثبتة عند أول استخدام." },
-  "readingHeading": { "message": "سلوك القراءة" },
-  "readingHelp": { "message": "اضبط طريقة التعامل مع نص الصفحة والحركة والنماذج المحلية." },
-  "autoScroll": { "message": "التمرير التلقائي" },
-  "autoScrollHelp": { "message": "أبقِ الكلمة الحالية ضمن مجال الرؤية." },
-  "selectionChip": { "message": "زر التحديد" },
-  "selectionChipHelp": { "message": "أظهر زر قراءة بجانب التحديدات التي تتجاوز 20 حرفًا." },
-  "readCodeBlocks": { "message": "اقرأ كتل الشيفرة" },
-  "readCodeBlocksHelp": { "message": "ضمّن الشيفرة المنسقة عند استخراج المقال." },
-  "arabicDiacritization": { "message": "تشكيل العربية" },
-  "arabicDiacritizationHelp": { "message": "نموذج محلي تجريبي، معطل حتى قياس أدائه." },
-  "urlReading": { "message": "قراءة الروابط" },
-  "skipUrls": { "message": "تجاوز الروابط" },
-  "domainOnly": { "message": "اقرأ اسم النطاق فقط" },
-  "fullUrl": { "message": "اقرأ الرابط كاملًا" },
-  "speed": { "message": "السرعة" },
-  "queuedSentences": { "message": "الجمل في قائمة الانتظار" },
-  "unloadEngine": { "message": "إغلاق محرك الصوت الخامل" },
-  "pdfInterception": { "message": "اعتراض ملفات PDF" },
-  "pdfHelp": { "message": "افتح روابط PDF في القارئ المحلي عند توفر الدعم." },
-  "highlightEnabled": { "message": "تظليل الكلمات والجمل" },
-  "highlightEnabledHelp": { "message": "أظهر ألوان التوقيت أثناء القراءة." },
-  "wordHighlightColor": { "message": "لون الكلمة" },
-  "sentenceHighlightColor": { "message": "لون الجملة" },
-  "modelsHeading": { "message": "النماذج على هذا الجهاز" },
-  "modelsHelp": { "message": "تُحفظ الأوزان في التخزين المحلي ويجري التحقق منها قبل الاستخدام." },
-  "download": { "message": "تنزيل" },
-  "downloading": { "message": "جارٍ التنزيل..." },
-  "delete": { "message": "حذف" },
-  "retry": { "message": "إعادة المحاولة" },
-  "modelReady": { "message": "جاهز" },
-  "modelNotDownloaded": { "message": "غير منزّل" },
-  "kokoroVoiceEmbeddings": { "message": "تُنزّل بيانات الصوت عند أول استخدام له." },
-  "preferencesSaved": { "message": "تم حفظ التفضيلات." },
-  "modelVerified": { "message": "تم التحقق من النموذج وأصبح جاهزًا." },
-  "modelRemoved": { "message": "تم حذف ملفات النموذج من هذا الجهاز." },
-  "speechLocal": { "message": "يبقى الصوت محليًا." },
-  "buildLabel": { "message": "الإصدار 0.1.0 / قراءة محلية" },
-  "voiceSaved": { "message": "تم حفظ تفضيل الصوت." },
-  "serverPairing": { "message": "جارٍ الاتصال بالخادم المحلي..." },
-  "serverPaired": { "message": "تم الاقتران. يُحفظ الرمز على هذا الجهاز ولا تتم مزامنته." },
-  "serverDisconnected": { "message": "تم قطع اتصال الخادم المحلي." },
-  "auditionFailure": { "message": "تعذر تشغيل عينة الصوت." },
-  "selectionError": { "message": "حدد نصًا قابلًا للقراءة أولًا." },
-  "articleError": { "message": "لم يُعثر على نص مقال قابل للقراءة." },
-  "movedTab": { "message": "انتقلت القراءة إلى علامة تبويب أخرى." },
-  "serverFallbackNotice": { "message": "الخادم المحلي غير متاح. سيتم استخدام أصوات المتصفح." },
-  "mixedVoiceNotice": { "message": "تستخدم القراءة المختلطة أصواتًا محلية أو أصوات الخادم للتبديل بين اللغات." },
-  "savedVoiceUnavailable": { "message": "الصوت المحفوظ غير متاح. سيتم استخدام أفضل صوت متاح." },
-  "readerStartError": { "message": "تعذر بدء القارئ." },
-  "selectionRead": { "message": "النص المحدد" },
-  "articleRead": { "message": "المقال الحالي" },
-  "voice": { "message": "الصوت" },
-  "drift": { "message": "الانحراف" },
-  "systemVoice": { "message": "صوت النظام" },
-  "remoteSystemVoice": { "message": "صوت نظام بعيد" },
-  "wordEvents": { "message": "أحداث الكلمات" },
-  "premium": { "message": "مميز" },
-  "enhanced": { "message": "محسّن" },
-  "standard": { "message": "قياسي" },
-  "compact": { "message": "مضغوط" },
-  "sampleFinished": { "message": "انتهت عينة $1." },
-  "voiceDiscoveryFailed": { "message": "تعذر اكتشاف الأصوات." },
-  "settingsLoadFailure": { "message": "تعذر تحميل الإعدادات." },
-  "pairFailure": { "message": "تعذر إقران الخادم." },
-  "refreshVoicesFailure": { "message": "تعذر تحديث قائمة الأصوات." },
-  "toggleReadCommand": { "message": "اقرأ الصفحة الحالية أو أوقف القراءة" },
-  "readSelectionCommand": { "message": "اقرأ النص المحدد" }
+  "appName": {
+    "message": "أوبن سبيشي"
+  },
+  "extensionDescription": {
+    "message": "اقرأ نصوص الويب بصوت محلي بالإنجليزية والعربية."
+  },
+  "actionTitle": {
+    "message": "اقرأ باستخدام أوبن سبيشي"
+  },
+  "readPage": {
+    "message": "اقرأ هذه الصفحة"
+  },
+  "readSelectionMenu": {
+    "message": "اقرأ التحديد"
+  },
+  "popupHeadline": {
+    "message": "اقرأ هذه الصفحة."
+  },
+  "readArticle": {
+    "message": "اقرأ المقال"
+  },
+  "preparingReader": {
+    "message": "جارٍ تجهيز القارئ..."
+  },
+  "readSelectedText": {
+    "message": "اقرأ النص المحدد"
+  },
+  "voicesAndSettings": {
+    "message": "الأصوات والإعدادات"
+  },
+  "localPrivacy": {
+    "message": "يبقى نص الصفحة على هذا الجهاز."
+  },
+  "restrictedPageError": {
+    "message": "لا تسمح هذه الصفحة لأوبن سبيشي بقراءة محتواها."
+  },
+  "selectionChipRead": {
+    "message": "▶ اقرأ التحديد"
+  },
+  "selectionChipLabel": {
+    "message": "اقرأ النص المحدد"
+  },
+  "playerLabel": {
+    "message": "مشغل أوبن سبيشي"
+  },
+  "previousSentence": {
+    "message": "الجملة السابقة"
+  },
+  "play": {
+    "message": "تشغيل"
+  },
+  "pause": {
+    "message": "إيقاف مؤقت"
+  },
+  "nextSentence": {
+    "message": "الجملة التالية"
+  },
+  "readingSpeed": {
+    "message": "سرعة القراءة"
+  },
+  "readingVoice": {
+    "message": "صوت القراءة"
+  },
+  "closeReader": {
+    "message": "إغلاق القارئ"
+  },
+  "preparingVoice": {
+    "message": "جارٍ تجهيز الصوت"
+  },
+  "wordProgress": {
+    "message": "الكلمة $1 من $2"
+  },
+  "readyToRead": {
+    "message": "جاهز للقراءة"
+  },
+  "jumpToCurrent": {
+    "message": "انتقل إلى الموضع الحالي"
+  },
+  "voiceOnDevice": {
+    "message": "على الجهاز"
+  },
+  "voiceLocalServer": {
+    "message": "خادم محلي"
+  },
+  "voiceNoWordEvents": {
+    "message": "$1، بلا أحداث للكلمات"
+  },
+  "optionsKicker": {
+    "message": "أوبن سبيشي / صوت محلي"
+  },
+  "optionsTitle": {
+    "message": "أصوات تناسبك."
+  },
+  "optionsLede": {
+    "message": "اختر صوتًا لكل لغة. يبقى نص الصفحة في هذا المتصفح، وتتولى الأصوات المحلية قراءته."
+  },
+  "voicePreference": {
+    "message": "تفضيل الصوت"
+  },
+  "autoVoiceHelp": {
+    "message": "يختار الوضع التلقائي أولًا صوت نظام محليًا من فئة Premium أو Enhanced."
+  },
+  "languageEnglish": {
+    "message": "الإنجليزية"
+  },
+  "languageArabic": {
+    "message": "العربية"
+  },
+  "automatic": {
+    "message": "تلقائي"
+  },
+  "modelNotInstalled": {
+    "message": "النموذج غير مثبت"
+  },
+  "macOS": {
+    "message": "على macOS"
+  },
+  "macVoiceHelp": {
+    "message": "للحصول على صوت نظام أفضل، افتح إعدادات النظام ← تسهيلات الاستخدام ← المحتوى المنطوق ← صوت النظام ← إدارة الأصوات. نزّل صوتًا إنجليزيًا Premium أو صوتًا عربيًا Enhanced، ثم أعد تشغيل Chrome. لا يتيح Chrome أصوات Siri."
+  },
+  "auditionVoices": {
+    "message": "استمع إلى الأصوات"
+  },
+  "auditionHelp": {
+    "message": "يقرأ كل صوت نظام متاح العينة القصيرة نفسها."
+  },
+  "playingSample": {
+    "message": "جارٍ التشغيل..."
+  },
+  "playSample": {
+    "message": "شغّل العينة"
+  },
+  "noVoices": {
+    "message": "لم يعثر Chrome على أصوات."
+  },
+  "serverHeading": {
+    "message": "الخادم المحلي المرافق"
+  },
+  "serverDescription": {
+    "message": "تتم معالجة الصوت الاختيارية على 127.0.0.1."
+  },
+  "serverUse": {
+    "message": "استخدم الخادم المحلي عند الاقتران"
+  },
+  "serverUseHelp": {
+    "message": "أوقف هذا الخيار لاستخدام أصوات المتصفح والنظام فقط."
+  },
+  "pairedDevice": {
+    "message": "مقترن على هذا الجهاز"
+  },
+  "notPaired": {
+    "message": "غير مقترن"
+  },
+  "tokenLocal": {
+    "message": "يُحفظ الرمز في مساحة التخزين المحلية للإضافة."
+  },
+  "pairCodeHelp": {
+    "message": "افتح صفحة الاقتران المحلية ثم أدخل الرمز لمرة واحدة."
+  },
+  "serverAddress": {
+    "message": "عنوان الخادم"
+  },
+  "openPairing": {
+    "message": "افتح صفحة الاقتران"
+  },
+  "oneTimeCode": {
+    "message": "رمز لمرة واحدة"
+  },
+  "pairServer": {
+    "message": "اقرن الخادم"
+  },
+  "connecting": {
+    "message": "جارٍ الاتصال..."
+  },
+  "serverVoicesReady": {
+    "message": "أصوات الخادم جاهزة."
+  },
+  "serverNoVoices": {
+    "message": "تم الاقتران، لكن لا يتوفر صوت على الخادم."
+  },
+  "disconnect": {
+    "message": "إلغاء الاتصال"
+  },
+  "serverFootnote": {
+    "message": "يقبل الخادم الطلبات من المتصفح المقترن فقط. تُنزّل النماذج من إصدارات مثبتة عند أول استخدام."
+  },
+  "readingHeading": {
+    "message": "سلوك القراءة"
+  },
+  "readingHelp": {
+    "message": "اضبط طريقة التعامل مع نص الصفحة والحركة والنماذج المحلية."
+  },
+  "autoScroll": {
+    "message": "التمرير التلقائي"
+  },
+  "autoScrollHelp": {
+    "message": "أبقِ الكلمة الحالية ضمن مجال الرؤية."
+  },
+  "selectionChip": {
+    "message": "زر التحديد"
+  },
+  "selectionChipHelp": {
+    "message": "أظهر زر قراءة بجانب التحديدات التي تتجاوز 20 حرفًا."
+  },
+  "readCodeBlocks": {
+    "message": "اقرأ كتل الشيفرة"
+  },
+  "readCodeBlocksHelp": {
+    "message": "ضمّن الشيفرة المنسقة عند استخراج المقال."
+  },
+  "arabicDiacritization": {
+    "message": "تشكيل العربية"
+  },
+  "arabicDiacritizationHelp": {
+    "message": "نموذج محلي تجريبي، معطل حتى قياس أدائه."
+  },
+  "urlReading": {
+    "message": "قراءة الروابط"
+  },
+  "skipUrls": {
+    "message": "تجاوز الروابط"
+  },
+  "domainOnly": {
+    "message": "اقرأ اسم النطاق فقط"
+  },
+  "fullUrl": {
+    "message": "اقرأ الرابط كاملًا"
+  },
+  "speed": {
+    "message": "السرعة"
+  },
+  "queuedSentences": {
+    "message": "الجمل في قائمة الانتظار"
+  },
+  "unloadEngine": {
+    "message": "إغلاق محرك الصوت الخامل"
+  },
+  "pdfInterception": {
+    "message": "اعتراض ملفات PDF"
+  },
+  "pdfHelp": {
+    "message": "افتح روابط PDF في القارئ المحلي عند توفر الدعم."
+  },
+  "highlightEnabled": {
+    "message": "تظليل الكلمات والجمل"
+  },
+  "highlightEnabledHelp": {
+    "message": "أظهر ألوان التوقيت أثناء القراءة."
+  },
+  "wordHighlightColor": {
+    "message": "لون الكلمة"
+  },
+  "sentenceHighlightColor": {
+    "message": "لون الجملة"
+  },
+  "modelsHeading": {
+    "message": "النماذج على هذا الجهاز"
+  },
+  "modelsHelp": {
+    "message": "تُحفظ الأوزان في التخزين المحلي ويجري التحقق منها قبل الاستخدام."
+  },
+  "download": {
+    "message": "تنزيل"
+  },
+  "downloading": {
+    "message": "جارٍ التنزيل..."
+  },
+  "delete": {
+    "message": "حذف"
+  },
+  "retry": {
+    "message": "إعادة المحاولة"
+  },
+  "modelReady": {
+    "message": "جاهز"
+  },
+  "modelNotDownloaded": {
+    "message": "غير منزّل"
+  },
+  "kokoroVoiceEmbeddings": {
+    "message": "تُنزّل بيانات الصوت عند أول استخدام له."
+  },
+  "preferencesSaved": {
+    "message": "تم حفظ التفضيلات."
+  },
+  "modelVerified": {
+    "message": "تم التحقق من النموذج وأصبح جاهزًا."
+  },
+  "modelRemoved": {
+    "message": "تم حذف ملفات النموذج من هذا الجهاز."
+  },
+  "speechLocal": {
+    "message": "يبقى الصوت محليًا."
+  },
+  "buildLabel": {
+    "message": "الإصدار 0.1.0 / قراءة محلية"
+  },
+  "voiceSaved": {
+    "message": "تم حفظ تفضيل الصوت."
+  },
+  "serverPairing": {
+    "message": "جارٍ الاتصال بالخادم المحلي..."
+  },
+  "serverPaired": {
+    "message": "تم الاقتران. يُحفظ الرمز على هذا الجهاز ولا تتم مزامنته."
+  },
+  "serverDisconnected": {
+    "message": "تم قطع اتصال الخادم المحلي."
+  },
+  "auditionFailure": {
+    "message": "تعذر تشغيل عينة الصوت."
+  },
+  "selectionError": {
+    "message": "حدد نصًا قابلًا للقراءة أولًا."
+  },
+  "articleError": {
+    "message": "لم يُعثر على نص مقال قابل للقراءة."
+  },
+  "movedTab": {
+    "message": "انتقلت القراءة إلى علامة تبويب أخرى."
+  },
+  "serverFallbackNotice": {
+    "message": "الخادم المحلي غير متاح. سيتم استخدام أصوات المتصفح."
+  },
+  "mixedVoiceNotice": {
+    "message": "تستخدم القراءة المختلطة أصواتًا محلية أو أصوات الخادم للتبديل بين اللغات."
+  },
+  "savedVoiceUnavailable": {
+    "message": "الصوت المحفوظ غير متاح. سيتم استخدام أفضل صوت متاح."
+  },
+  "readerStartError": {
+    "message": "تعذر بدء القارئ."
+  },
+  "selectionRead": {
+    "message": "النص المحدد"
+  },
+  "articleRead": {
+    "message": "المقال الحالي"
+  },
+  "voice": {
+    "message": "الصوت"
+  },
+  "drift": {
+    "message": "الانحراف"
+  },
+  "systemVoice": {
+    "message": "صوت النظام"
+  },
+  "remoteSystemVoice": {
+    "message": "صوت نظام بعيد"
+  },
+  "wordEvents": {
+    "message": "أحداث الكلمات"
+  },
+  "premium": {
+    "message": "مميز"
+  },
+  "enhanced": {
+    "message": "محسّن"
+  },
+  "standard": {
+    "message": "قياسي"
+  },
+  "compact": {
+    "message": "مضغوط"
+  },
+  "sampleFinished": {
+    "message": "انتهت عينة $1."
+  },
+  "voiceDiscoveryFailed": {
+    "message": "تعذر اكتشاف الأصوات."
+  },
+  "settingsLoadFailure": {
+    "message": "تعذر تحميل الإعدادات."
+  },
+  "pairFailure": {
+    "message": "تعذر إقران الخادم."
+  },
+  "refreshVoicesFailure": {
+    "message": "تعذر تحديث قائمة الأصوات."
+  },
+  "toggleReadCommand": {
+    "message": "اقرأ الصفحة الحالية أو أوقف القراءة"
+  },
+  "readSelectionCommand": {
+    "message": "اقرأ النص المحدد"
+  },
+  "readThisPdf": {
+    "message": "اقرأ ملف PDF هذا"
+  },
+  "pdfRead": {
+    "message": "اقرأ"
+  },
+  "pdfLoading": {
+    "message": "جارٍ تحميل PDF…"
+  },
+  "pdfNoSource": {
+    "message": "لم يتم توفير ملف PDF."
+  },
+  "pdfNothingToRead": {
+    "message": "حمّل ملف PDF أولًا."
+  },
+  "pdfLoadFailure": {
+    "message": "تعذّرت قراءة ملف PDF هذا."
+  },
+  "pdfFileAccessHint": {
+    "message": "تعذّر فتح الملف. فعّل «السماح بالوصول إلى عناوين URL للملفات» لـ Open Speechy في chrome://extensions ثم أعد تحميل علامة التبويب."
+  }
 }
