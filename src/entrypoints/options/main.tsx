@@ -10,6 +10,7 @@ import {
 import { normalizeServerUrl } from "../../engines/server";
 import { MODEL_CATALOG, MODEL_DESCRIPTORS } from "../../models/catalog";
 import { ModelManager, type ModelProgress } from "../../models/manager";
+import { setDocumentLanguage, t } from "../../i18n";
 import "./options.css";
 
 interface VoiceListResponse {
@@ -89,7 +90,7 @@ function OptionsPage() {
         }));
       });
       await refreshModels();
-      setNotice("Model verified and ready.");
+      setNotice(t("modelVerified", "Model verified and ready."));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Model download failed.";
@@ -120,6 +121,7 @@ function OptionsPage() {
   }
 
   useEffect(() => {
+    setDocumentLanguage(document);
     void Promise.all([
       settingsStore.load(),
       chrome.runtime.sendMessage({ type: "voices/list" }) as Promise<
@@ -130,12 +132,14 @@ function OptionsPage() {
         setSettings(loaded);
         setServerUrl(loaded.server.url);
         if (response.ok && response.voices) setVoices(response.voices);
-        else setNotice(response.error ?? "Voice discovery failed.");
+        else setNotice(response.error ?? t("voiceDiscoveryFailed", "Voice discovery failed."));
         void refreshModels();
       })
       .catch((error: unknown) => {
         setNotice(
-          error instanceof Error ? error.message : "Settings could not load.",
+          error instanceof Error
+            ? error.message
+            : t("settingsLoadFailure", "Settings could not load."),
         );
       });
   }, []);
@@ -143,12 +147,14 @@ function OptionsPage() {
   async function selectVoice(lang: Lang, voiceId: string): Promise<void> {
     const updated = await settingsStore.update({ voice: { [lang]: voiceId } });
     setSettings(updated);
-    setNotice("Voice preference saved.");
+    setNotice(t("voiceSaved", "Voice preference saved."));
   }
 
   async function audition(voice: VoiceInfo): Promise<void> {
     setAuditioning(voice.id);
-    setNotice(`Playing ${voice.name}...`);
+    setNotice(
+      `${t("playingSample", "Playing...")} ${voice.name}`,
+    );
     try {
       const response = (await chrome.runtime.sendMessage({
         type: "voice/audition",
@@ -156,12 +162,14 @@ function OptionsPage() {
       })) as { ok?: boolean; error?: string };
       setNotice(
         response.ok
-          ? `${voice.name} sample finished.`
-          : response.error ?? "Voice audition failed.",
+          ? t("sampleFinished", "$1 sample finished.", [voice.name])
+          : response.error ?? t("auditionFailure", "Voice audition failed."),
       );
     } catch (error) {
       setNotice(
-        error instanceof Error ? error.message : "Voice audition failed.",
+        error instanceof Error
+          ? error.message
+          : t("auditionFailure", "Voice audition failed."),
       );
     } finally {
       setAuditioning(null);
@@ -170,7 +178,7 @@ function OptionsPage() {
 
   async function pairServer(): Promise<void> {
     setServerBusy(true);
-    setNotice("Connecting to the loopback server...");
+    setNotice(t("serverPairing", "Connecting to the loopback server..."));
     try {
       const url = normalizeServerUrl(serverUrl);
       const response = await fetch(`${url}/pair`, {
@@ -191,12 +199,12 @@ function OptionsPage() {
       setSettings(updated);
       setPairCode("");
       await refreshVoices();
-      setNotice(
-        "Paired. The server token is stored on this device, not synced.",
-      );
+      setNotice(t("serverPaired", "Paired on this device."));
     } catch (error) {
       setNotice(
-        error instanceof Error ? error.message : "Could not pair the server.",
+        error instanceof Error
+          ? error.message
+          : t("pairFailure", "Could not pair the server."),
       );
     } finally {
       setServerBusy(false);
@@ -208,13 +216,17 @@ function OptionsPage() {
       type: "voices/list",
     })) as VoiceListResponse;
     if (response.ok && response.voices) setVoices(response.voices);
-    else throw new Error(response.error ?? "Could not refresh voices.");
+    else {
+      throw new Error(
+        response.error ?? t("refreshVoicesFailure", "Could not refresh voices."),
+      );
+    }
   }
 
   async function saveSettings(patch: SettingsPatch): Promise<void> {
     const updated = await settingsStore.update(patch);
     setSettings(updated);
-    setNotice("Preferences saved.");
+      setNotice(t("preferencesSaved", "Preferences saved."));
   }
 
   async function disconnectServer(): Promise<void> {
@@ -223,18 +235,22 @@ function OptionsPage() {
     });
     setSettings(updated);
     setVoices((current) => current.filter((voice) => voice.engineId !== "server"));
-    setNotice("Local server disconnected.");
+    setNotice(t("serverDisconnected", "Local server disconnected."));
   }
 
   return (
     <main className="options">
       <header className="masthead">
         <div>
-          <p className="kicker">OPEN SPEECHY / LOCAL AUDIO</p>
-          <h1>Voices, tuned to you.</h1>
+          <p className="kicker">
+            {t("optionsKicker", "OPEN SPEECHY / LOCAL AUDIO")}
+          </p>
+          <h1>{t("optionsTitle", "Voices, tuned to you.")}</h1>
           <p className="lede">
-            Choose a voice for each language. Page text stays in this browser;
-            system voices and installed models do the talking.
+            {t(
+              "optionsLede",
+              "Choose a voice for each language. Page text stays in this browser; system voices and installed models do the talking.",
+            )}
           </p>
         </div>
         <span className="seal" aria-hidden="true">
@@ -246,8 +262,15 @@ function OptionsPage() {
         <div className="section__heading">
           <span className="section__number">01</span>
           <div>
-            <h2 id="voice-heading">Voice preference</h2>
-            <p>Auto mode picks a local Premium or Enhanced system voice first.</p>
+            <h2 id="voice-heading">
+              {t("voicePreference", "Voice preference")}
+            </h2>
+            <p>
+              {t(
+                "autoVoiceHelp",
+                "Auto mode picks a local Premium or Enhanced system voice first.",
+              )}
+            </p>
           </div>
         </div>
 
@@ -255,22 +278,26 @@ function OptionsPage() {
           {(["en", "ar"] as const).map((lang) => (
             <label className="language-card" key={lang}>
               <span className="language-card__lang">
-                {lang === "en" ? "English" : "العربية"}
+                {lang === "en"
+                  ? t("languageEnglish", "English")
+                  : t("languageArabic", "Arabic")}
               </span>
               <select
                 value={settings.voice[lang]}
-                aria-label={`${lang === "en" ? "English" : "Arabic"} voice`}
+                aria-label={`${lang === "en" ? t("languageEnglish", "English") : t("languageArabic", "Arabic")} ${t("voice", "voice")}`}
                 onChange={(event) =>
                   void selectVoice(lang, event.currentTarget.value)
                 }
               >
-                <option value="auto">Automatic</option>
+                <option value="auto">{t("automatic", "Automatic")}</option>
                 {voices
                   .filter((voice) => voice.lang === lang)
                   .map((voice) => (
                     <option value={voice.id} key={voice.id}>
                       {voice.name} / {voice.quality}
-                      {!voice.installed ? " / model not installed" : ""}
+                      {!voice.installed
+                        ? ` / ${t("modelNotInstalled", "model not installed")}`
+                        : ""}
                     </option>
                   ))}
               </select>
@@ -279,12 +306,12 @@ function OptionsPage() {
         </div>
 
         <aside className="help-note">
-          <strong>On macOS</strong>
+          <strong>{t("macOS", "On macOS")}</strong>
           <p>
-            For a higher-quality system voice, open System Settings → Accessibility
-            → Spoken Content → System Voice → Manage Voices. Download a Premium
-            English voice or an Enhanced Arabic voice, then restart Chrome.
-            Siri voices are not exposed to Chrome.
+            {t(
+              "macVoiceHelp",
+              "For a higher-quality system voice, open System Settings → Accessibility → Spoken Content → System Voice → Manage Voices. Download a Premium English voice or an Enhanced Arabic voice, then restart Chrome. Siri voices are not exposed to Chrome.",
+            )}
           </p>
         </aside>
       </section>
@@ -293,8 +320,15 @@ function OptionsPage() {
         <div className="section__heading">
           <span className="section__number">02</span>
           <div>
-            <h2 id="audition-heading">Audition voices</h2>
-            <p>Each available system voice reads the same short sample.</p>
+            <h2 id="audition-heading">
+              {t("auditionVoices", "Audition voices")}
+            </h2>
+            <p>
+              {t(
+                "auditionHelp",
+                "Each available voice reads the same short sample.",
+              )}
+            </p>
           </div>
         </div>
 
@@ -309,15 +343,19 @@ function OptionsPage() {
                   </span>
                 </div>
                 <p>
-                  {voice.lang === "en" ? "English" : "Arabic"} ·{" "}
+                  {voice.lang === "en"
+                    ? t("languageEnglish", "English")
+                    : t("languageArabic", "Arabic")} ·{" "}
                   {voice.engineId === "system"
                     ? voice.local
-                      ? "System voice"
-                      : "Remote system voice"
+                      ? t("systemVoice", "System voice")
+                      : t("remoteSystemVoice", "Remote system voice")
                     : voice.engineId === "server"
-                      ? "Local server"
-                      : "On-device model"}
-                  {voice.supportsWordTimings ? " · word events" : ""}
+                      ? t("voiceLocalServer", "Local server")
+                      : t("voiceOnDevice", "On-device model")}
+                  {voice.supportsWordTimings
+                    ? ` · ${t("wordEvents", "word events")}`
+                    : ""}
                 </p>
               </div>
               <button
@@ -329,12 +367,16 @@ function OptionsPage() {
                 }
                 onClick={() => void audition(voice)}
               >
-                {auditioning === voice.id ? "Playing..." : "Play sample"}
+                {auditioning === voice.id
+                  ? t("playingSample", "Playing...")
+                  : t("playSample", "Play sample")}
               </button>
             </article>
           ))}
           {voices.length === 0 && (
-            <p className="empty-state">No voices were reported by Chrome.</p>
+            <p className="empty-state">
+              {t("noVoices", "No voices were reported by Chrome.")}
+            </p>
           )}
         </div>
         <p className="notice" role="status" aria-live="polite">
@@ -346,16 +388,28 @@ function OptionsPage() {
         <div className="section__heading">
           <span className="section__number">03</span>
           <div>
-            <h2 id="server-heading">Local companion server</h2>
-            <p>Optional voice processing stays on 127.0.0.1.</p>
+            <h2 id="server-heading">
+              {t("serverHeading", "Local companion server")}
+            </h2>
+            <p>
+              {t(
+                "serverDescription",
+                "Optional voice processing stays on 127.0.0.1.",
+              )}
+            </p>
           </div>
         </div>
 
         <div className="server-panel">
           <label className="setting-row setting-row--compact">
             <span>
-              <strong>Use the local server when paired</strong>
-              <small>Disable this to use only browser and system voices.</small>
+              <strong>{t("serverUse", "Use the local server when paired")}</strong>
+              <small>
+                {t(
+                  "serverUseHelp",
+                  "Disable this to use only browser and system voices.",
+                )}
+              </small>
             </span>
             <input
               type="checkbox"
@@ -378,18 +432,23 @@ function OptionsPage() {
             />
             <div>
               <strong>
-                {settings.server.token ? "Paired on this device" : "Not paired"}
+                {settings.server.token
+                  ? t("pairedDevice", "Paired on this device")
+                  : t("notPaired", "Not paired")}
               </strong>
               <p>
                 {settings.server.token
-                  ? "The token is held in local extension storage."
-                  : "Open the local pairing page, then enter its one-time code."}
+                  ? t("tokenLocal", "The token is held in local extension storage.")
+                  : t(
+                      "pairCodeHelp",
+                      "Open the local pairing page, then enter its one-time code.",
+                    )}
               </p>
             </div>
           </div>
 
           <label className="server-field">
-            <span>Server address</span>
+            <span>{t("serverAddress", "Server address")}</span>
             <input
               value={serverUrl}
               spellCheck={false}
@@ -403,10 +462,10 @@ function OptionsPage() {
               target="_blank"
               rel="noreferrer"
             >
-              Open pairing page
+              {t("openPairing", "Open pairing page")}
             </a>
             <label className="server-field">
-              <span>One-time code</span>
+              <span>{t("oneTimeCode", "One-time code")}</span>
               <input
                 inputMode="numeric"
                 maxLength={6}
@@ -419,7 +478,9 @@ function OptionsPage() {
               disabled={serverBusy || pairCode.trim().length !== 6}
               onClick={() => void pairServer()}
             >
-              {serverBusy ? "Connecting..." : "Pair server"}
+              {serverBusy
+                ? t("connecting", "Connecting...")
+                : t("pairServer", "Pair server")}
             </button>
           </div>
 
@@ -427,17 +488,19 @@ function OptionsPage() {
             <div className="server-panel__footer">
               <span>
                 {voices.some((voice) => voice.engineId === "server")
-                  ? "Server voices are ready."
-                  : "Paired, but no verified server voice is available."}
+                  ? t("serverVoicesReady", "Server voices are ready.")
+                  : t("serverNoVoices", "Paired, but no server voice is available.")}
               </span>
               <button type="button" onClick={() => void disconnectServer()}>
-                Disconnect
+                {t("disconnect", "Disconnect")}
               </button>
             </div>
           )}
           <p className="server-footnote">
-            The server only accepts extension requests from its paired browser.
-            Models download from pinned revisions on first use.
+            {t(
+              "serverFootnote",
+              "The server only accepts extension requests from its paired browser. Models download from pinned revisions on first use.",
+            )}
           </p>
         </div>
       </section>
@@ -446,16 +509,23 @@ function OptionsPage() {
         <div className="section__heading">
           <span className="section__number">04</span>
           <div>
-            <h2 id="reading-heading">Reading behavior</h2>
-            <p>Set how the reader handles page text, motion, and local models.</p>
+            <h2 id="reading-heading">
+              {t("readingHeading", "Reading behavior")}
+            </h2>
+            <p>
+              {t(
+                "readingHelp",
+                "Set how the reader handles page text, motion, and local models.",
+              )}
+            </p>
           </div>
         </div>
 
         <div className="settings-grid">
           <label className="setting-row">
             <span>
-              <strong>Auto-scroll</strong>
-              <small>Keep the current word in view while reading.</small>
+              <strong>{t("autoScroll", "Auto-scroll")}</strong>
+              <small>{t("autoScrollHelp", "Keep the current word in view while reading.")}</small>
             </span>
             <input
               type="checkbox"
@@ -467,8 +537,13 @@ function OptionsPage() {
           </label>
           <label className="setting-row">
             <span>
-              <strong>Selection chip</strong>
-              <small>Show a read button next to selections over 20 characters.</small>
+              <strong>{t("selectionChip", "Selection chip")}</strong>
+              <small>
+                {t(
+                  "selectionChipHelp",
+                  "Show a read button next to selections over 20 characters.",
+                )}
+              </small>
             </span>
             <input
               type="checkbox"
@@ -480,8 +555,13 @@ function OptionsPage() {
           </label>
           <label className="setting-row">
             <span>
-              <strong>Read code blocks</strong>
-              <small>Include preformatted code in article extraction.</small>
+              <strong>{t("readCodeBlocks", "Read code blocks")}</strong>
+              <small>
+                {t(
+                  "readCodeBlocksHelp",
+                  "Include preformatted code in article extraction.",
+                )}
+              </small>
             </span>
             <input
               type="checkbox"
@@ -493,8 +573,13 @@ function OptionsPage() {
           </label>
           <label className="setting-row">
             <span>
-              <strong>Arabic diacritization</strong>
-              <small>Experimental local model; disabled until benchmarked.</small>
+              <strong>{t("arabicDiacritization", "Arabic diacritization")}</strong>
+              <small>
+                {t(
+                  "arabicDiacritizationHelp",
+                  "Experimental local model; disabled until benchmarked.",
+                )}
+              </small>
             </span>
             <input
               type="checkbox"
@@ -507,7 +592,7 @@ function OptionsPage() {
             />
           </label>
           <label className="setting-control">
-            <span>URL reading</span>
+            <span>{t("urlReading", "URL reading")}</span>
             <select
               value={settings.urls}
               onChange={(event) =>
@@ -516,13 +601,13 @@ function OptionsPage() {
                 })
               }
             >
-              <option value="skip">Skip URLs</option>
-              <option value="domain">Read domain only</option>
-              <option value="full">Read full URL</option>
+              <option value="skip">{t("skipUrls", "Skip URLs")}</option>
+              <option value="domain">{t("domainOnly", "Read domain only")}</option>
+              <option value="full">{t("fullUrl", "Read full URL")}</option>
             </select>
           </label>
           <label className="setting-control">
-            <span>Speed</span>
+            <span>{t("speed", "Speed")}</span>
             <div className="range-setting">
               <input
                 type="range"
@@ -538,7 +623,7 @@ function OptionsPage() {
             </div>
           </label>
           <label className="setting-control">
-            <span>Queued sentences</span>
+            <span>{t("queuedSentences", "Queued sentences")}</span>
             <select
               value={settings.lookahead}
               onChange={(event) =>
@@ -553,7 +638,7 @@ function OptionsPage() {
             </select>
           </label>
           <label className="setting-control">
-            <span>Unload idle audio engine</span>
+            <span>{t("unloadEngine", "Unload idle audio engine")}</span>
             <div className="range-setting">
               <input
                 type="range"
@@ -572,8 +657,13 @@ function OptionsPage() {
           </label>
           <label className="setting-row">
             <span>
-              <strong>PDF interception</strong>
-              <small>Open PDF links in the local reader when supported.</small>
+              <strong>{t("pdfInterception", "PDF interception")}</strong>
+              <small>
+                {t(
+                  "pdfHelp",
+                  "Open PDF links in the local reader when supported.",
+                )}
+              </small>
             </span>
             <input
               type="checkbox"
@@ -587,8 +677,15 @@ function OptionsPage() {
           </label>
           <label className="setting-row">
             <span>
-              <strong>Word and sentence highlights</strong>
-              <small>Keep timing colors visible while the page is read.</small>
+              <strong>
+                {t("highlightEnabled", "Word and sentence highlights")}
+              </strong>
+              <small>
+                {t(
+                  "highlightEnabledHelp",
+                  "Keep timing colors visible while the page is read.",
+                )}
+              </small>
             </span>
             <input
               type="checkbox"
@@ -601,7 +698,7 @@ function OptionsPage() {
             />
           </label>
           <label className="setting-control">
-            <span>Word highlight color</span>
+            <span>{t("wordHighlightColor", "Word highlight color")}</span>
             <input
               type="color"
               value={colorToHex(settings.highlight.word, "#ffb300")}
@@ -615,7 +712,9 @@ function OptionsPage() {
             />
           </label>
           <label className="setting-control">
-            <span>Sentence highlight color</span>
+            <span>
+              {t("sentenceHighlightColor", "Sentence highlight color")}
+            </span>
             <input
               type="color"
               value={colorToHex(settings.highlight.sentence, "#ffd54f")}
@@ -635,8 +734,15 @@ function OptionsPage() {
         <div className="section__heading">
           <span className="section__number">05</span>
           <div>
-            <h2 id="models-heading">Models on this device</h2>
-            <p>Weights stay in local Cache Storage and are checked before use.</p>
+            <h2 id="models-heading">
+              {t("modelsHeading", "Models on this device")}
+            </h2>
+            <p>
+              {t(
+                "modelsHelp",
+                "Weights stay in local Cache Storage and are checked before use.",
+              )}
+            </p>
           </div>
         </div>
         <div className="model-list">
@@ -648,10 +754,10 @@ function OptionsPage() {
             };
             const title =
               model.id === "kokoro-en-q8"
-                ? "Kokoro English (q8)"
+                ? t("kokoroModel", "Kokoro English (q8)")
                 : model.id === "piper-ar-kareem-medium"
-                  ? "Piper Kareem, Arabic"
-                  : "libtashkeel Arabic diacritizer";
+                  ? t("piperModel", "Piper Kareem, Arabic")
+                  : t("diacritizerModel", "libtashkeel Arabic diacritizer");
             const ready = state.phase === "ready";
             const downloading = state.phase === "downloading";
             const percentage =
@@ -665,17 +771,24 @@ function OptionsPage() {
                     <strong>{title}</strong>
                     <span className={`model-state model-state--${state.phase}`}>
                       {ready
-                        ? "Ready"
+                        ? t("modelReady", "Ready")
                         : downloading
                           ? `${percentage}%`
                           : state.phase === "error"
-                            ? "Error"
-                            : "Not downloaded"}
+                            ? t("error", "Error")
+                            : t("modelNotDownloaded", "Not downloaded")}
                     </span>
                   </div>
-                  <p>{formatBytes(model.bytes)} · {model.license}</p>
+                  <p>
+                    {formatBytes(model.bytes)} · {model.license}
+                  </p>
                   {model.id === "kokoro-en-q8" && (
-                    <p>Voice embeddings download when a voice is first used.</p>
+                    <p>
+                      {t(
+                        "kokoroVoiceEmbeddings",
+                        "Voice embeddings download when a voice is first used.",
+                      )}
+                    </p>
                   )}
                   {state.error && <p className="model-error">{state.error}</p>}
                   {downloading && (
@@ -692,12 +805,12 @@ function OptionsPage() {
                   }
                 >
                   {downloading
-                    ? "Downloading..."
+                    ? t("downloading", "Downloading...")
                     : ready
-                      ? "Delete"
+                      ? t("delete", "Delete")
                       : state.phase === "error"
-                        ? "Retry"
-                        : "Download"}
+                        ? t("retry", "Retry")
+                        : t("download", "Download")}
                 </button>
               </article>
             );
@@ -706,8 +819,8 @@ function OptionsPage() {
       </section>
 
       <footer className="footer">
-        <span>Speech stays local.</span>
-        <span>Build 0.1.0 / local-first speech</span>
+        <span>{t("speechLocal", "Speech stays local.")}</span>
+        <span>{t("buildLabel", "Build 0.1.0 / local-first speech")}</span>
       </footer>
     </main>
   );

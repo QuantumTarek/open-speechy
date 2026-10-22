@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 export class SelectionChip {
   readonly #document: Document;
   readonly #window: Window;
@@ -95,8 +97,11 @@ export class SelectionChip {
     `;
     const button = this.#document.createElement("button");
     button.type = "button";
-    button.textContent = "▶ Read selection";
-    button.setAttribute("aria-label", "Read selected text");
+    button.textContent = t("selectionChipRead", "▶ Read selection");
+    button.setAttribute(
+      "aria-label",
+      t("selectionChipLabel", "Read selected text"),
+    );
     button.addEventListener("pointerdown", (event) => {
       event.preventDefault();
       event.stopPropagation();

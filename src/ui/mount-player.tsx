@@ -89,6 +89,17 @@ const PLAYER_CSS = `
   }
   .player__drift { min-width: 74px; color: #73827d; font-size: 10px; }
   .player__close { width: 28px; height: 28px; font-size: 20px; }
+  .player .player__jump {
+    grid-column: 1 / -1;
+    width: auto;
+    height: auto;
+    justify-self: center;
+    padding: 6px 10px;
+    border: 1px solid rgba(25, 50, 56, 0.2);
+    border-radius: 999px;
+    color: #285856;
+    font-size: 11px;
+  }
   @media (max-width: 560px) {
     :host { bottom: 10px; width: calc(100vw - 18px); }
     .player {

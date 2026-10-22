@@ -32,6 +32,12 @@
   settings for voice, speed, URL handling, highlight preferences, model
   downloads, server pairing, and reading behavior. The selected-text e2e test
   starts reading through the chip and checks that the article DOM is unchanged.
+- M5.2 localizes the UI through `_locales` message files (en/ar), swaps in the
+  dark-page highlight palette when the article background is dark, pauses
+  auto-scroll after manual scrolling with a "Jump to current" pill, rebinds
+  word pieces after DOM mutations via `src/text/rebind.ts`, unloads the
+  offscreen document after `idleUnloadMinutes`, and restarts a session from
+  storage when the offscreen document was reclaimed.
 
 ## Still blocked on measurements or implementation
 
@@ -42,7 +48,6 @@
   Arabic PDF ordering checks, and native-speaker pronunciation ratings. The
   server adapters and mixed-language routing are implemented, but real model
   gap timings and pronunciation results are not claimed.
-- M5 still needs localized strings, mutation re-matching, auto-scroll polish,
-  dark-page highlight colors, and idle unload behavior. M6 through M8 remain in
-  progress. `docs/qa.md` lists the manual checks that still need a browser,
-  local models, or a native Arabic speaker.
+- M5.2 is implemented. M6 through M8 remain in progress. `docs/qa.md` lists
+  the manual checks that still need a browser, local models, or a native
+  Arabic speaker.

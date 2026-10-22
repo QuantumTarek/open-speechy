@@ -19,3 +19,4 @@ __pycache__/
 *.onnx
 *.wav
 *.mp3
+.claude/settings.local.json

@@ -1,5 +1,6 @@
 import type { Lang, SentencePlan, VoiceInfo } from "../engines/types";
 import { Highlighter } from "../highlight/highlighter";
+import { highlightColors } from "../highlight/colors";
 import {
   isRuntimeMessage,
   type RuntimeMessage,
@@ -15,10 +16,12 @@ import {
 } from "../text/extract";
 import { detectLanguage } from "../text/lang";
 import { segmentBlocks } from "../text/segment";
+import { rebindSentencePieces } from "../text/rebind";
 import { mountPlayer, type MountedPlayer } from "../ui/mount-player";
 import { SelectionChip } from "../ui/selection-chip";
 import type { PlayerBarProps } from "../ui/PlayerBar";
 import { DEFAULT_SETTINGS, SettingsStore } from "../settings/store";
+import type { AppSettings } from "../settings/store";
 
 type ReadSource = "article" | "selection";
 
@@ -36,6 +39,12 @@ export class ContentController {
     en: "kokoro:af_heart",
     ar: "piper:ar_JO-kareem-medium",
   };
+  #settings: AppSettings = DEFAULT_SETTINGS;
+  #settingsReady: Promise<void> = Promise.resolve();
+  #readRoot: Element | null = null;
+  #mutationObserver: MutationObserver | null = null;
+  #mutationTimer: ReturnType<typeof setTimeout> | null = null;
+  #showJumpToCurrent = false;
   #voices: VoiceInfo[] = [];
   #noticeTimer: ReturnType<typeof setTimeout> | null = null;
   #highlighter: Highlighter | null = null;
@@ -47,11 +56,15 @@ export class ContentController {
     changes: { [key: string]: chrome.storage.StorageChange },
     areaName: string,
   ): void => {
-    if (areaName === "sync" && changes.selectionChip) {
-      this.#selectionChip.setEnabled(
-        changes.selectionChip.newValue !== false,
-      );
-    }
+    if (areaName !== "sync" || Object.keys(changes).length === 0) return;
+    this.#settingsReady = new SettingsStore()
+      .load()
+      .then((settings) => {
+        this.#settings = settings;
+        this.#selectionChip.setEnabled(settings.selectionChip);
+        this.#highlighter?.updateOptions(this.#highlighterOptions());
+      })
+      .catch(() => {});
   };
 
   constructor(
@@ -69,9 +82,12 @@ export class ContentController {
       () => void this.readSelection(),
       DEFAULT_SETTINGS.selectionChip,
     );
-    void new SettingsStore()
+    this.#settingsReady = new SettingsStore()
       .load()
-      .then((settings) => this.#selectionChip.setEnabled(settings.selectionChip))
+      .then((settings) => {
+        this.#settings = settings;
+        this.#selectionChip.setEnabled(settings.selectionChip);
+      })
       .catch(() => {});
     chrome.storage.onChanged.addListener(this.#handleStorageChange);
 
@@ -92,13 +108,19 @@ export class ContentController {
   }
 
   async readPage(): Promise<void> {
+    await this.#settingsReady;
     const root = findArticleRoot(this.document);
-    const blocks = extractTextBlocks(root);
+    this.#readRoot = root;
+    const blocks = extractTextBlocks(root, {
+      readCodeBlocks: this.#settings.readCodeBlocks,
+    });
     await this.#start(blocks, "article");
   }
 
   async readSelection(): Promise<void> {
+    await this.#settingsReady;
     this.#selectionChip.hide();
+    this.#readRoot = null;
     const selection = this.window.getSelection();
     const blocks = selection ? extractSelectionBlocks(selection) : [];
     await this.#start(blocks, "selection");
@@ -108,6 +130,7 @@ export class ContentController {
     chrome.runtime.onMessage.removeListener(this.#listener);
     chrome.storage.onChanged.removeListener(this.#handleStorageChange);
     this.#selectionChip.dispose();
+    this.#stopMutationObserver();
     this.#clock?.stop();
     this.#highlighter?.dispose();
     this.#player?.unmount();
@@ -139,6 +162,11 @@ export class ContentController {
     this.#setNotice(undefined);
     this.#currentWordIndex = null;
     this.#showPlayer(sentences);
+    if (source === "article" && this.#readRoot) {
+      this.#observeRoot(this.#readRoot);
+    } else {
+      this.#stopMutationObserver();
+    }
     this.#highlighter?.setSentences(sentences);
     this.#highlighter?.setClickable(true);
     this.#render();
@@ -186,6 +214,12 @@ export class ContentController {
     if (!this.#highlighter) {
       this.#highlighter = new Highlighter(this.document, (wordIndex) => {
         void this.#send({ type: "session/control", action: "seek", wordIndex });
+      }, {
+        ...this.#highlighterOptions(),
+        onJumpVisibilityChange: (visible) => {
+          this.#showJumpToCurrent = visible;
+          this.#render();
+        },
       });
     }
     this.#clock?.stop();
@@ -208,6 +242,74 @@ export class ContentController {
       this.#setState(message.state, message.error);
     } else if (message.type === "session/event") {
       this.#handleSessionEvent(message.event);
+    }
+  }
+
+  #highlighterOptions() {
+    const colors = highlightColors(
+      this.document,
+      this.#readRoot,
+      this.#settings.highlight,
+    );
+    return {
+      enabled: this.#settings.highlight.enabled,
+      autoScroll: this.#settings.autoScroll,
+      wordColor: colors.word,
+      sentenceColor: colors.sentence,
+    };
+  }
+
+  #observeRoot(root: Element): void {
+    this.#stopMutationObserver();
+    const target = root.parentElement ?? root;
+    this.#mutationObserver = new MutationObserver(() => {
+      if (this.#mutationTimer) clearTimeout(this.#mutationTimer);
+      this.#mutationTimer = setTimeout(() => {
+        this.#mutationTimer = null;
+        void this.#refreshWordMap();
+      }, 200);
+    });
+    this.#mutationObserver.observe(target, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
+  }
+
+  #stopMutationObserver(): void {
+    this.#mutationObserver?.disconnect();
+    this.#mutationObserver = null;
+    if (this.#mutationTimer) clearTimeout(this.#mutationTimer);
+    this.#mutationTimer = null;
+  }
+
+  #refreshWordMap(): void {
+    let root = this.#readRoot;
+    if (!root || this.#sentences.length === 0) return;
+    if (!root.isConnected) {
+      root = findArticleRoot(this.document);
+      this.#readRoot = root;
+      this.#observeRoot(root);
+    }
+    const refreshed = segmentBlocks(
+      extractTextBlocks(root, {
+        readCodeBlocks: this.#settings.readCodeBlocks,
+      }),
+      (block) => this.#languageForBlock(block),
+    );
+    this.#sentences = rebindSentencePieces(this.#sentences, refreshed);
+    this.#highlighter?.setSentences(this.#sentences);
+    this.#highlighter?.updateOptions(this.#highlighterOptions());
+    if (this.#currentWordIndex !== null) {
+      const sentence = this.#sentences.find((candidate) =>
+        candidate.words.some((word) => word.index === this.#currentWordIndex),
+      );
+      this.#highlighter?.highlightWord(
+        this.#currentWordIndex,
+        sentence?.id,
+      );
     }
   }
 
@@ -280,12 +382,14 @@ export class ContentController {
       await this.#send({ type: "session/control", action });
       this.#clock?.stop();
       this.#highlighter?.dispose();
+      this.#stopMutationObserver();
       this.#player?.unmount();
       this.#player = null;
       this.#highlighter = null;
       this.#clock = null;
       this.#sentences = [];
       this.#state = "idle";
+      this.#showJumpToCurrent = false;
       return;
     }
     await this.#send({ type: "session/control", action });
@@ -326,6 +430,8 @@ export class ContentController {
       voices: this.#voices,
       voiceId: this.#voiceIds[lang] ?? this.#voiceId,
       lang,
+      showJumpToCurrent: this.#showJumpToCurrent,
+      onJumpToCurrent: () => this.#highlighter?.jumpToCurrent(),
       onControl: (action) => {
         if (action === "play" || action === "pause") {
           void this.#send({ type: "session/control", action });

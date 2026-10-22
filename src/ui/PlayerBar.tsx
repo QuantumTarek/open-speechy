@@ -2,6 +2,7 @@ import type { KeyboardEvent } from "react";
 import type { Lang, VoiceInfo } from "../engines/types";
 import type { SessionControlAction } from "../messaging/protocol";
 import type { SessionState } from "../playback/session";
+import { t } from "../i18n";
 
 export interface PlayerBarProps {
   status: SessionState;
@@ -15,9 +16,11 @@ export interface PlayerBarProps {
   voices: VoiceInfo[];
   voiceId: string;
   lang: Lang;
+  showJumpToCurrent?: boolean;
   onControl(action: SessionControlAction): void;
   onSpeed(speed: number): void;
   onVoice(voiceId: string): void;
+  onJumpToCurrent(): void;
   onClose(): void;
 }
 
@@ -55,7 +58,7 @@ export function PlayerBar(props: PlayerBarProps) {
     <div
       className="player"
       role="region"
-      aria-label="Open Speechy player"
+      aria-label={t("playerLabel", "Open Speechy player")}
       tabIndex={0}
       onKeyDown={handleKeyDown}
       dir="auto"
@@ -67,16 +70,19 @@ export function PlayerBar(props: PlayerBarProps) {
           {props.error ??
             props.notice ??
             (busy
-              ? "Preparing voice"
+              ? t("preparingVoice", "Preparing voice")
               : props.totalWords > 0
-                ? `Word ${wordNumber} of ${props.totalWords}`
-                : "Ready to read")}
+                ? t("wordProgress", `Word ${wordNumber} of ${props.totalWords}`, [
+                    String(wordNumber),
+                    String(props.totalWords),
+                  ])
+                : t("readyToRead", "Ready to read"))}
         </span>
       </div>
       <div className="player__controls" aria-label="Playback controls">
         <button
           type="button"
-          aria-label="Previous sentence"
+          aria-label={t("previousSentence", "Previous sentence")}
           onClick={() => props.onControl("previous")}
         >
           <span aria-hidden="true">|&lt;</span>
@@ -84,7 +90,7 @@ export function PlayerBar(props: PlayerBarProps) {
         <button
           className="player__play"
           type="button"
-          aria-label={playing ? "Pause" : "Play"}
+          aria-label={playing ? t("pause", "Pause") : t("play", "Play")}
           disabled={props.status === "error"}
           onClick={() => props.onControl("toggle")}
         >
@@ -92,7 +98,7 @@ export function PlayerBar(props: PlayerBarProps) {
         </button>
         <button
           type="button"
-          aria-label="Next sentence"
+          aria-label={t("nextSentence", "Next sentence")}
           onClick={() => props.onControl("next")}
         >
           <span aria-hidden="true">&gt;|</span>
@@ -106,14 +112,14 @@ export function PlayerBar(props: PlayerBarProps) {
           max="3"
           step="0.1"
           value={props.speed}
-          aria-label="Reading speed"
+          aria-label={t("readingSpeed", "Reading speed")}
           onChange={(event) => props.onSpeed(Number(event.currentTarget.value))}
         />
       </label>
       <label className="player__voice">
-        <span>Voice</span>
+        <span>{t("voice", "Voice")}</span>
         <select
-          aria-label="Reading voice"
+          aria-label={t("readingVoice", "Reading voice")}
           value={props.voiceId}
           onChange={(event) => props.onVoice(event.currentTarget.value)}
         >
@@ -126,13 +132,24 @@ export function PlayerBar(props: PlayerBarProps) {
             ))}
         </select>
       </label>
+      {props.showJumpToCurrent && (
+        <button
+          className="player__jump"
+          type="button"
+          onClick={props.onJumpToCurrent}
+        >
+          {t("jumpToCurrent", "Jump to current")}
+        </button>
+      )}
       <span className="player__drift" aria-live="off">
-        {props.status === "playing" ? `Drift ${props.driftMs} ms` : ""}
+        {props.status === "playing"
+          ? `${t("drift", "Drift")} ${props.driftMs} ms`
+          : ""}
       </span>
       <button
         className="player__close"
         type="button"
-        aria-label="Close reader"
+        aria-label={t("closeReader", "Close reader")}
         onClick={props.onClose}
       >
         ×
@@ -144,8 +161,12 @@ export function PlayerBar(props: PlayerBarProps) {
 function qualityLabel(voice: VoiceInfo): string {
   if (voice.engineId === "system") {
     return voice.quality === "standard" || voice.quality === "compact"
-      ? `${voice.quality}${voice.supportsWordTimings ? "" : ", no word events"}`
-      : voice.quality;
+      ? voice.supportsWordTimings
+        ? t(voice.quality, voice.quality)
+        : t("voiceNoWordEvents", "$1, no word events", [voice.quality])
+      : t(voice.quality, voice.quality);
   }
-  return voice.engineId === "server" ? "Local server" : "On-device";
+  return voice.engineId === "server"
+    ? t("voiceLocalServer", "Local server")
+    : t("voiceOnDevice", "On-device");
 }

@@ -30,6 +30,7 @@ export type RuntimeMessage =
       startWordIndex?: number;
       voiceId?: string;
       voiceLang?: Lang;
+      voiceIds?: Partial<Record<Lang, string>>;
       speed?: number;
     }
   | {

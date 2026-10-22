@@ -11,6 +11,7 @@ import { defineBackground } from "wxt/utils/define-background";
 
 let activeTabId: number | null = null;
 let activeSystemSession: SystemSpeechSession | null = null;
+let idleUnloadTimer: ReturnType<typeof setTimeout> | null = null;
 let cachedServerEngine:
   | { url: string; token: string; engine: ServerEngine }
   | null = null;
@@ -197,6 +198,7 @@ async function startSession(
   }
   activeTabId = tabId;
   await chrome.storage.session.set({ openSpeechyActiveTab: tabId });
+  clearIdleUnloadTimer();
   await stopActiveOutput();
 
   const lang = message.sentences[0]?.lang ?? "en";
@@ -213,10 +215,11 @@ async function startSession(
   let systemVoiceSkippedForMixed = false;
   for (const targetLang of langs) {
     const override =
-      message.voiceLang === targetLang ||
+      message.voiceIds?.[targetLang] ??
+      (message.voiceLang === targetLang ||
       (message.voiceLang === undefined && langs.length === 1)
         ? message.voiceId ?? settings.voice[targetLang]
-        : settings.voice[targetLang];
+        : settings.voice[targetLang]);
     const selection = selectVoice(targetLang, {
       override,
       systemVoices: discovered.system,
@@ -374,6 +377,14 @@ async function forwardSessionEvent(
   ) {
     activeSession.currentWordIndex = message.event.timings[0].wordIndex;
   }
+  if (
+    message.event.type === "session/state" &&
+    (message.event.state === "ended" ||
+      message.event.state === "idle" ||
+      message.event.state === "error")
+  ) {
+    void scheduleOffscreenUnload();
+  }
   if (activeTabId !== null) {
     await sendToTab(activeTabId, {
       type: "session/event",
@@ -416,6 +427,23 @@ async function handleSessionCommand(
     return;
   }
 
+  if (
+    !activeSystemSession &&
+    activeSession &&
+    !(await chrome.offscreen.hasDocument()) &&
+    (message.action === "play" || message.action === "toggle")
+  ) {
+    const previous = activeSession;
+    await startSession(previous.tabId, {
+      type: "session/start",
+      sentences: previous.sentences,
+      startWordIndex: previous.sentences[0]?.words[0]?.index,
+      voiceIds: previous.voiceIds,
+      speed: previous.speed,
+    });
+    return;
+  }
+
   if (activeSystemSession) {
     if (message.action === "toggle") activeSystemSession.toggle();
     else if (message.action === "play") activeSystemSession.resume();
@@ -444,6 +472,7 @@ async function handleSessionCommand(
 }
 
 async function stopActiveOutput(): Promise<void> {
+  clearIdleUnloadTimer();
   activeSystemSession?.stop();
   activeSystemSession = null;
   if (await chrome.offscreen.hasDocument()) {
@@ -453,6 +482,24 @@ async function stopActiveOutput(): Promise<void> {
     });
   }
   activeSession = null;
+}
+
+function clearIdleUnloadTimer(): void {
+  if (idleUnloadTimer) clearTimeout(idleUnloadTimer);
+  idleUnloadTimer = null;
+}
+
+async function scheduleOffscreenUnload(): Promise<void> {
+  if (activeSystemSession || !(await chrome.offscreen.hasDocument())) return;
+  clearIdleUnloadTimer();
+  const settings = await new SettingsStore().load();
+  idleUnloadTimer = setTimeout(() => {
+    idleUnloadTimer = null;
+    void chrome.offscreen
+      .hasDocument()
+      .then((exists) => (exists ? chrome.offscreen.closeDocument() : undefined))
+      .catch(() => {});
+  }, settings.idleUnloadMinutes * 60_000);
 }
 
 async function sendSessionEvent(
