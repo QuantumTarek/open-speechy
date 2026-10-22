@@ -1,6 +1,7 @@
 import { FakeEngine, isTestEngineEnabled } from "../../engines/fake";
 import { fallbackVoiceId, ServerFallbackEngine } from "../../engines/fallback";
 import { KokoroEngine } from "../../engines/kokoro";
+import { PiperEngine } from "../../engines/piper";
 import { ServerEngine } from "../../engines/server";
 import type { TtsEngine } from "../../engines/types";
 import type { SessionEvent } from "../../messaging/protocol";
@@ -68,13 +69,20 @@ async function startSession(
     engine = new FakeEngine();
   } else if (message.voiceId?.startsWith("server:")) {
     const settings = await new SettingsStore().load();
-    const fallback = new KokoroEngine();
+    const lang = message.sentences[0]?.lang ?? "en";
+    const fallback =
+      lang === "ar"
+        ? new PiperEngine(settings.arabic.diacritize)
+        : new KokoroEngine();
     engine = new ServerFallbackEngine(
       new ServerEngine(settings.server.url, settings.server.token),
       fallback,
-      fallbackVoiceId(message.sentences[0]?.lang ?? "en"),
+      fallbackVoiceId(lang),
       (notice) => void emit({ type: "session/notice", message: notice }),
     );
+  } else if (message.voiceId?.startsWith("piper:")) {
+    const settings = await new SettingsStore().load();
+    engine = new PiperEngine(settings.arabic.diacritize);
   } else {
     engine = new KokoroEngine();
   }

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   ArabicDiacritizer,
+  prepareTashkeelInput,
   isMostlyDiacritized,
   preserveWordOffsets,
+  restoreTashkeel,
 } from "../../src/engines/diacritizer";
 import { normalizeArabicWord } from "../../src/text/normalize-ar";
 import { numberToArabicWords } from "../../src/text/number-to-words-ar";
@@ -133,6 +135,28 @@ describe("Arabic normalization", () => {
 });
 
 describe("Arabic diacritization fallback", () => {
+  const maps = {
+    input: { _: 0, " ": 1, "#": 2, ب: 3, س: 4, م: 5 },
+    hint: { _: 0, "": 1, "ِ": 7, "ْ": 14 },
+    target: { _: 0, "": 1, "ِ": 7, "ْ": 14 },
+  };
+
+  it("encodes marks as hints attached to their preceding Arabic letter", () => {
+    const prepared = prepareTashkeelInput("بِسْم", maps);
+
+    expect(prepared.inputIds).toEqual([3n, 4n, 5n]);
+    expect(prepared.hintIds).toEqual([7n, 14n, 1n]);
+    expect(prepared.cleanLength).toBe(3);
+  });
+
+  it("reapplies model marks without changing unsupported characters", () => {
+    const prepared = prepareTashkeelInput("بx", maps);
+
+    expect(
+      restoreTashkeel("بx", [7], maps, prepared.removedCharacters),
+    ).toBe("بِx");
+  });
+
   it("detects text that already has harakat", () => {
     expect(isMostlyDiacritized("مَرْحَبًا بِكَ")).toBe(true);
     expect(isMostlyDiacritized("مرحبا بك")).toBe(false);

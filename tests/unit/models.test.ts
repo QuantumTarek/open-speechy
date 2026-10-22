@@ -4,6 +4,7 @@ import {
   type ModelDescriptor,
   type ModelStorage,
 } from "../../src/models/manager";
+import manifest from "../../src/models/models.json";
 
 const VALID_MODEL: ModelDescriptor = {
   id: "sample-model",
@@ -15,7 +16,7 @@ const VALID_MODEL: ModelDescriptor = {
   verified: true,
   files: [
     {
-      url: "https://huggingface.co/test/model/resolve/0123456789abcdef/model.bin",
+      url: "https://huggingface.co/test/model/resolve/0123456789abcdef0123456789abcdef01234567/model.bin",
       sha256:
         "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
       bytes: 3,
@@ -44,6 +45,22 @@ function makeCache() {
 }
 
 describe("model manager", () => {
+  it("ships pinned SHA-256 manifests for each browser model", () => {
+    for (const model of manifest.models) {
+      expect(model.revision).toMatch(/^[a-f0-9]{40}$/u);
+      expect(model.verified).toBe(true);
+      expect(model.files.length).toBeGreaterThan(0);
+      for (const file of model.files) {
+        expect(file.sha256).toMatch(/^[a-f0-9]{64}$/u);
+        expect(file.bytes).toBeGreaterThan(0);
+      }
+    }
+    for (const voice of Object.values(manifest.kokoroVoices)) {
+      expect(voice.sha256).toMatch(/^[a-f0-9]{64}$/u);
+      expect(voice.bytes).toBeGreaterThan(0);
+    }
+  });
+
   it("does not download a model without a pinned checksum manifest", async () => {
     const fetcher = vi.fn();
     const manager = new ModelManager(
@@ -78,6 +95,31 @@ describe("model manager", () => {
     expect(await manager.isInstalled("sample-model")).toBe(true);
     await manager.download("sample-model");
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("serves only verified manifest files to Transformers.js", async () => {
+    const { storage } = makeCache();
+    const manager = new ModelManager([VALID_MODEL], {
+      cacheStorage: storage,
+      fetcher: async () => new Response(new Uint8Array([1, 2, 3])),
+      sleep: async () => {},
+    });
+    await manager.download("sample-model");
+
+    const response = await manager
+      .createTransformersCache()
+      .match(
+        "https://huggingface.co/test/model/resolve/main/model.bin",
+      );
+    expect(response).toBeDefined();
+    expect([...new Uint8Array(await response!.arrayBuffer())]).toEqual([
+      1, 2, 3,
+    ]);
+    expect([
+      ...new Uint8Array(
+        await manager.readFile("sample-model", VALID_MODEL.files[0].url),
+      ),
+    ]).toEqual([1, 2, 3]);
   });
 
   it("rejects a file whose digest differs from the pinned value", async () => {

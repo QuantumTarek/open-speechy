@@ -27,3 +27,20 @@ These spikes were run before implementation on 2026-10-22. The machine is Apple 
 - Blind ratings for the 20 Arabic sentences and MMS_FA alignment error measurements.
 
 The environment-sensitive and listening checks are listed in [qa.md](qa.md). A value marked "not measured" here must not be presented as a performance or quality result.
+
+## Implementation follow-up
+
+- Browser Kokoro uses `onnx-community/Kokoro-82M-v1.0-ONNX` at revision
+  `1939ad2a8e416c0acfeecc08a694d14ef25f2231`, with q8 weights and per-voice
+  embeddings. The extension verifies each file's SHA-256 before Transformers.js
+  can read it.
+- Browser Piper uses `rhasspy/piper-voices` at revision
+  `5041a7a49ae5b3a0f30e6837769eb03fdbb231bd`. The pinned voice card points to
+  `AliMokhammad/arabicttstrain` but does not state its license. The extension
+  does not bundle the voice weights.
+- The diacritizer implementation selects the 4.8 MB MIT libtashkeel ONNX mirror
+  at revision `ee43300a96e8fec13d573699d993b76c1aacf983`. Its model size meets
+  the spike budget, but WASM speed and pronunciation accuracy have not been
+  measured. The setting remains off by default.
+- These pins verify file identity, not synthesis speed, word timing, or voice
+  quality. Keep the corresponding acceptance checks open until measured.

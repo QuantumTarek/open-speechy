@@ -21,13 +21,16 @@
   pinned Hugging Face revisions. MMS_FA alignment falls back to estimated
   timings when it is missing or uncertain.
 - M4 text preparation handles Arabic digits, tatweel, number words, and mixed
-  English/Arabic word runs. Diacritization stays off without a verified model.
+  English/Arabic word runs. M4.2 pins the browser Kokoro, Piper, and libtashkeel
+  files, adds VITS inference with the bundled eSpeak-NG WASM phonemizer, and
+  wires the Arabic ONNX predictor behind the existing setting. Diacritization
+  remains off pending speed and pronunciation checks.
 
 ## Still blocked on measurements or implementation
 
-- Browser Kokoro, Piper, and libtashkeel checksums are not yet wired into the
-  extension manifest. Piper inference and per-language mixed-script routing
-  remain in progress.
+- Per-language mixed-script routing remains in progress. The Piper Kareem
+  model card still does not state the training dataset license, so do not
+  redistribute its weights until that is confirmed.
 - M0 still needs system voice event traces, browser/server timing benchmarks,
   Arabic PDF ordering checks, and native-speaker pronunciation ratings. The
   server adapters are implemented, but those measurements are not claimed.

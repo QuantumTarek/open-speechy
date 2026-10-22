@@ -90,11 +90,14 @@ in place. Arabic number normalization, offset-preserving word mapping, and
 mixed English/Arabic word runs are also covered by unit tests. Run
 `pnpm test:e2e` to exercise the article flow in Playwright's bundled Chromium.
 
-Real Kokoro downloads remain disabled until a pinned model revision and audited
-SHA-256 manifest are available. The M0 spike did not measure model timings,
-system-voice word events, Arabic pronunciation, or the companion-server engines.
-System voice routing requires a local Premium/Enhanced voice with the required
-word events. The voice list still shows compact and standard voices for manual
-selection. Browser Arabic diacritization stays off without a verified local
-predictor. See [docs/spikes.md](docs/spikes.md); no timing or pronunciation
-target is claimed yet.
+Kokoro, Piper Kareem, and libtashkeel have pinned revisions and SHA-256
+manifests in `src/models/models.json`; each downloads only when selected.
+Piper uses a bundled eSpeak-NG WebAssembly phonemizer and ONNX Runtime Web.
+The libtashkeel predictor is available behind the Arabic diacritization
+setting, which stays off until its speed and accuracy are measured.
+
+System voice routing still requires a local Premium/Enhanced voice with
+runtime `word` events. The M0 spike did not measure model timing drift,
+system-voice `charIndex` accuracy, or Arabic pronunciation. See
+[docs/spikes.md](docs/spikes.md); no timing or pronunciation target is claimed
+yet.

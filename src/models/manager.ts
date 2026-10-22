@@ -102,6 +102,66 @@ export class ModelManager {
     );
   }
 
+  async readFile(modelId: string, fileUrl: string): Promise<ArrayBuffer> {
+    const model = this.get(modelId);
+    const file = model?.files.find((candidate) => candidate.url === fileUrl);
+    if (!model || !file || !this.canDownload(modelId)) {
+      throw new ModelUnavailableError(
+        modelId,
+        "the requested file is not in a verified model manifest",
+      );
+    }
+    const cache = await this.#getCache();
+    const response = await cache.match(file.url);
+    if (!response || !(await this.#responseIsValid(response.clone(), file))) {
+      if (response) await cache.delete(file.url);
+      throw new ModelUnavailableError(modelId, "the verified file is not cached");
+    }
+    return response.arrayBuffer();
+  }
+
+  createTransformersCache(): {
+    match(request: RequestInfo | URL): Promise<Response | undefined>;
+    put(request: RequestInfo | URL, response: Response): Promise<void>;
+  } {
+    return {
+      match: async (request) => {
+        const file = this.#fileForRequest(request);
+        if (!file) return undefined;
+        const cache = await this.#getCache();
+        const response = await cache.match(file.url);
+        if (!response) return undefined;
+        if (!(await this.#responseIsValid(response.clone(), file))) {
+          await cache.delete(file.url);
+          return undefined;
+        }
+        return response;
+      },
+      put: async (request, response) => {
+        const file = this.#fileForRequest(request);
+        if (!file) {
+          throw new Error("Transformers.js requested an unlisted model file.");
+        }
+        const bytes = await response.arrayBuffer();
+        if (
+          bytes.byteLength !== file.bytes ||
+          (await sha256(bytes)).toLowerCase() !== file.sha256.toLowerCase()
+        ) {
+          throw new Error(`SHA-256 mismatch for ${file.url}`);
+        }
+        const cache = await this.#getCache();
+        await cache.put(
+          file.url,
+          new Response(bytes, {
+            headers: response.headers,
+            status: response.status,
+            statusText: response.statusText,
+          }),
+        );
+      },
+    };
+  }
+
   async isInstalled(modelId: string): Promise<boolean> {
     const model = this.get(modelId);
     if (!model || !this.canDownload(modelId)) return false;
@@ -263,6 +323,38 @@ export class ModelManager {
       bytes.byteLength === file.bytes &&
       (await sha256(bytes)).toLowerCase() === file.sha256.toLowerCase()
     );
+  }
+
+  #fileForRequest(request: RequestInfo | URL): ModelFile | undefined {
+    const requestUrl =
+      typeof request === "string"
+        ? request
+        : request instanceof Request
+          ? request.url
+          : request.toString();
+    let pathname: string;
+    try {
+      pathname = decodeURIComponent(new URL(requestUrl).pathname);
+    } catch {
+      return undefined;
+    }
+
+    for (const model of this.#models) {
+      const prefix = `/${model.modelId}/resolve/`;
+      if (!pathname.startsWith(prefix)) continue;
+      const resolvedPath = pathname.slice(prefix.length);
+      const revisionEnd = resolvedPath.indexOf("/");
+      if (revisionEnd < 0) continue;
+      const relativePath = resolvedPath.slice(revisionEnd + 1);
+      const file = model.files.find((candidate) => {
+        const candidatePath = new URL(candidate.url).pathname;
+        return candidatePath.endsWith(
+          `${prefix}${model.revision}/${relativePath}`,
+        );
+      });
+      if (file) return file;
+    }
+    return undefined;
   }
 
   async #getCache(): Promise<ModelStorage> {
