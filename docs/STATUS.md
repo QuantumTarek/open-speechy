@@ -70,5 +70,4 @@
   privacy policy written, store screenshots generated, server version
   update notice wired in options, README install instructions added.
   A real store listing, real Google Docs check, and tagged server release
-  remain manual steps. `docs/qa.md` lists the manual checks that still
-  need a browser, local models, or a native Arabic speaker.
+  remain manual steps.

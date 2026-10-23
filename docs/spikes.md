@@ -26,7 +26,7 @@ These spikes were run before implementation on 2026-10-22. The machine is Apple 
 - SILMA, Kokoro, Chatterbox-Nano, and optional Chatterbox-Multilingual benchmark on MPS and CPU.
 - Blind ratings for the 20 Arabic sentences and MMS_FA alignment error measurements.
 
-The environment-sensitive and listening checks are listed in [qa.md](qa.md). A value marked "not measured" here must not be presented as a performance or quality result.
+A value marked "not measured" here must not be presented as a performance or quality result.
 
 ## Implementation follow-up
 

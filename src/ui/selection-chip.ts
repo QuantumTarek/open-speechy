@@ -1,3 +1,4 @@
+import { createElement, Play } from "lucide";
 import { t } from "../i18n";
 
 export class SelectionChip {
@@ -84,20 +85,31 @@ export class SelectionChip {
     const style = this.#document.createElement("style");
     style.textContent = `
       button {
-        border: 1px solid rgba(25, 50, 56, 0.2);
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        border: 1px solid rgba(27, 30, 75, 0.2);
         border-radius: 999px;
         padding: 8px 13px;
-        background: #193238;
-        box-shadow: 0 5px 18px rgba(10, 29, 34, 0.2);
-        color: #fffaf0;
+        background: #3540b8;
+        box-shadow: 0 5px 18px rgba(20, 24, 80, 0.25);
+        color: #ffffff;
         cursor: pointer;
         font: 600 12px "Avenir Next", "Trebuchet MS", sans-serif;
       }
-      button:focus-visible { outline: 2px solid #e6a14a; outline-offset: 2px; }
+      button:focus-visible { outline: 2px solid #abb3fe; outline-offset: 2px; }
     `;
     const button = this.#document.createElement("button");
     button.type = "button";
-    button.textContent = t("selectionChipRead", "▶ Read selection");
+    button.append(
+      createElement(Play, {
+        width: 11,
+        height: 11,
+        fill: "currentColor",
+        "aria-hidden": "true",
+      }),
+      t("selectionChipRead", "Read selection"),
+    );
     button.setAttribute(
       "aria-label",
       t("selectionChipLabel", "Read selected text"),

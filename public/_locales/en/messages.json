@@ -36,7 +36,7 @@
     "message": "This page does not allow Open Speechy to read its content."
   },
   "selectionChipRead": {
-    "message": "▶ Read selection"
+    "message": "Read selection"
   },
   "selectionChipLabel": {
     "message": "Read selected text"
