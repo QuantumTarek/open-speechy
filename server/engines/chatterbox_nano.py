@@ -14,7 +14,9 @@ from .chatterbox_utils import audio_samples, change_speed
 
 class ChatterboxNanoEngine:
     id = "chatterbox_nano"
+    title = "Chatterbox Nano"
     langs = ("en",)
+    models = ("chatterbox_nano",)
 
     def __init__(
         self,
@@ -99,6 +101,10 @@ class ChatterboxNanoEngine:
                     "Could not load the pinned Chatterbox Nano model."
                 ) from error
         self.loaded = True
+
+    def unload(self) -> None:
+        self._model = None
+        self.loaded = False
 
     def _generate(self, text: str, speed: float) -> list[float]:
         if self._model is None:

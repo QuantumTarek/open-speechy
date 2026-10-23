@@ -21,6 +21,38 @@ export interface ServerHealth {
   engines: ServerEngineStatus[];
 }
 
+export type ServerModelState =
+  | "missing"
+  | "downloaded"
+  | "downloading"
+  | "loading"
+  | "loaded"
+  | "error";
+
+/** A model the server downloads on first use, or the shared word aligner. */
+export interface ServerModel {
+  id: string;
+  name: string;
+  kind: "voice" | "aligner";
+  langs: Lang[];
+  bytes: number;
+  downloadedBytes: number;
+  state: ServerModelState;
+  // While downloading: every file the preparation needs, aligner included.
+  progress?: { downloaded: number; total: number };
+  error?: string;
+}
+
+export interface PrepareProgress {
+  stage: "downloading" | "loading";
+  loaded: number;
+  total: number;
+}
+
+const PREPARE_POLL_MS = 500;
+// Preparation that reports no change for this long has stalled.
+const PREPARE_STALL_MS = 5 * 60_000;
+
 export class ServerRequestError extends Error {
   constructor(
     message: string,
@@ -42,6 +74,7 @@ interface FetchOptions {
   fetcher?: typeof fetch;
   now?: () => number;
   makeRequestId?: () => string;
+  sleep?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 }
 
 export class ServerEngine implements TtsEngine {
@@ -51,6 +84,7 @@ export class ServerEngine implements TtsEngine {
   readonly #fetch: typeof fetch;
   readonly #now: () => number;
   readonly #makeRequestId: () => string;
+  readonly #sleep: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
   #ready = false;
   #healthCache: { health: ServerHealth | null; expiresAt: number } | null =
     null;
@@ -62,11 +96,12 @@ export class ServerEngine implements TtsEngine {
   ) {
     this.#baseUrl = normalizeServerUrl(baseUrl);
     this.#token = token;
-    this.#fetch = options.fetcher ?? fetch;
+    this.#fetch = options.fetcher ?? fetch.bind(globalThis);
     this.#now = options.now ?? Date.now;
     this.#makeRequestId =
       options.makeRequestId ??
       (() => `os-${this.#now()}-${Math.random().toString(36).slice(2, 10)}`);
+    this.#sleep = options.sleep ?? sleep;
   }
 
   isReady(): boolean {
@@ -91,7 +126,7 @@ export class ServerEngine implements TtsEngine {
       const response = await this.#fetchWithTimeout(
         "/health",
         { headers: this.#headers() },
-        3_000,
+        8_000,
       );
       if (!response.ok) {
         this.#cacheHealth(null);
@@ -135,6 +170,92 @@ export class ServerEngine implements TtsEngine {
     );
     if (!response.ok && response.status !== 204) {
       throw await responseError(response);
+    }
+  }
+
+  /** The server's models, or null for a server too old to report them. */
+  async models(): Promise<ServerModel[] | null> {
+    const response = await this.#fetchWithTimeout(
+      "/models",
+      { headers: this.#headers() },
+      15_000,
+    );
+    if (response.status === 404) return null;
+    if (!response.ok) throw await responseError(response);
+    const body: unknown = await response.json();
+    if (!isRecord(body) || !Array.isArray(body.models)) {
+      throw new Error("Invalid server model response.");
+    }
+    return body.models.flatMap((value) => {
+      const model = parseModel(value);
+      return model ? [model] : [];
+    });
+  }
+
+  /** Starts a download and load on the server. models() reports progress. */
+  async prepareModel(modelId: string): Promise<void> {
+    const response = await this.#fetchWithTimeout(
+      `/models/${encodeURIComponent(modelId)}/prepare`,
+      { method: "POST", headers: this.#headers() },
+      15_000,
+    );
+    if (!response.ok) throw await responseError(response);
+  }
+
+  /** Deletes a model's files from the server. Returns the bytes freed. */
+  async removeModel(modelId: string): Promise<number> {
+    const response = await this.#fetchWithTimeout(
+      `/models/${encodeURIComponent(modelId)}`,
+      { method: "DELETE", headers: this.#headers() },
+      60_000,
+    );
+    if (!response.ok) throw await responseError(response);
+    const body: unknown = await response.json();
+    return isRecord(body) && typeof body.freedBytes === "number"
+      ? body.freedBytes
+      : 0;
+  }
+
+  /**
+   * Downloads and loads the model behind a voice before its first sentence.
+   * A first download can take minutes, longer than one synthesis request may.
+   */
+  async prepareVoice(
+    voiceId: string,
+    onProgress: (progress: PrepareProgress) => void,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const engineId = voiceId.split(":")[1] ?? "";
+    let model = (await this.models())?.find((entry) => entry.id === engineId);
+    if (!model || model.state === "loaded") return;
+    await this.prepareModel(engineId);
+    let lastChange = this.#now();
+    let lastSeen = "";
+    for (;;) {
+      await this.#sleep(PREPARE_POLL_MS, signal);
+      model = (await this.models())?.find((entry) => entry.id === engineId);
+      if (!model || model.state === "loaded") return;
+      if (model.state === "error") {
+        throw new Error(model.error ?? `The server could not prepare ${model.name}.`);
+      }
+      if (model.state === "missing" || model.state === "downloaded") {
+        // Nothing is preparing it any more, so the server restarted.
+        throw new Error(`The server stopped preparing ${model.name}.`);
+      }
+      const loaded = model.progress?.downloaded ?? 0;
+      const total = model.progress?.total ?? 0;
+      onProgress({
+        stage: model.state === "downloading" ? "downloading" : "loading",
+        loaded,
+        total,
+      });
+      const seen = `${model.state}:${loaded}`;
+      if (seen !== lastSeen) {
+        lastSeen = seen;
+        lastChange = this.#now();
+      } else if (this.#now() - lastChange > PREPARE_STALL_MS) {
+        throw new Error(`Preparing ${model.name} on the server stalled.`);
+      }
     }
   }
 
@@ -241,9 +362,10 @@ export class ServerEngine implements TtsEngine {
   }
 
   #cacheHealth(health: ServerHealth | null): void {
+    // A failure is retried soon: the server may have been starting up.
     this.#healthCache = {
       health,
-      expiresAt: this.#now() + 30_000,
+      expiresAt: this.#now() + (health ? 30_000 : 2_000),
     };
   }
 
@@ -328,6 +450,8 @@ function parseVoice(value: unknown): VoiceInfo | undefined {
     engineId: "server",
     lang: value.lang,
     name: value.name,
+    description:
+      typeof value.description === "string" ? value.description : undefined,
     quality: value.quality,
     local: value.local,
     supportsWordTimings: value.supportsWordTimings,
@@ -335,6 +459,65 @@ function parseVoice(value: unknown): VoiceInfo | undefined {
       typeof value.sizeBytes === "number" ? value.sizeBytes : undefined,
     installed: value.installed,
   };
+}
+
+const MODEL_STATES = new Set<ServerModelState>([
+  "missing",
+  "downloaded",
+  "downloading",
+  "loading",
+  "loaded",
+  "error",
+]);
+
+function parseModel(value: unknown): ServerModel | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.name !== "string" ||
+    typeof value.bytes !== "number" ||
+    typeof value.downloadedBytes !== "number" ||
+    !MODEL_STATES.has(value.state as ServerModelState)
+  ) {
+    return undefined;
+  }
+  const progress =
+    isRecord(value.progress) &&
+    typeof value.progress.downloaded === "number" &&
+    typeof value.progress.total === "number"
+      ? { downloaded: value.progress.downloaded, total: value.progress.total }
+      : undefined;
+  return {
+    id: value.id,
+    name: value.name,
+    kind: value.kind === "aligner" ? "aligner" : "voice",
+    langs: Array.isArray(value.langs)
+      ? value.langs.filter((lang): lang is Lang => lang === "en" || lang === "ar")
+      : [],
+    bytes: value.bytes,
+    downloadedBytes: value.downloadedBytes,
+    state: value.state as ServerModelState,
+    progress,
+    error: typeof value.error === "string" ? value.error : undefined,
+  };
+}
+
+function sleep(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, milliseconds);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function parseSynthesisResponse(value: unknown): ServerSynthesisResponse {
@@ -521,7 +704,7 @@ function isQuality(
 }
 
 /** The server version this extension build expects. */
-export const EXPECTED_SERVER_VERSION = "0.1.0";
+export const EXPECTED_SERVER_VERSION = "0.2.0";
 
 /** True when the paired server reports a version older than expected. */
 export function serverUpdateAvailable(version: string): boolean {

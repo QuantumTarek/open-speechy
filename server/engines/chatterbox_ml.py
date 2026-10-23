@@ -14,7 +14,9 @@ from .chatterbox_utils import audio_samples, change_speed
 
 class ChatterboxMultilingualEngine:
     id = "chatterbox_ml"
+    title = "Chatterbox Multilingual"
     langs = ("ar",)
+    models = ("chatterbox_ml",)
 
     def __init__(
         self,
@@ -98,6 +100,10 @@ class ChatterboxMultilingualEngine:
                     "Could not load the pinned Chatterbox Multilingual model."
                 ) from error
         self.loaded = True
+
+    def unload(self) -> None:
+        self._model = None
+        self.loaded = False
 
     def _generate(self, text: str, speed: float) -> list[float]:
         if self._model is None:

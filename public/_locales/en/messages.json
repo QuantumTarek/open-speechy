@@ -68,6 +68,9 @@
   "preparingVoice": {
     "message": "Preparing voice"
   },
+  "buffering": {
+    "message": "Buffering"
+  },
   "wordProgress": {
     "message": "Word $1 of $2"
   },
@@ -111,7 +114,7 @@
     "message": "Automatic"
   },
   "modelNotInstalled": {
-    "message": "model not installed"
+    "message": "downloads on first use"
   },
   "macOS": {
     "message": "On macOS"
@@ -123,7 +126,7 @@
     "message": "Audition voices"
   },
   "auditionHelp": {
-    "message": "Each available system voice reads the same short sample."
+    "message": "Play a short sample of any voice. On-device voices download the first time you play them."
   },
   "playingSample": {
     "message": "Playing..."
@@ -141,19 +144,10 @@
     "message": "Optional voice processing stays on 127.0.0.1."
   },
   "serverUse": {
-    "message": "Use the local server when paired"
+    "message": "Use the local server"
   },
   "serverUseHelp": {
     "message": "Disable this to use only browser and system voices."
-  },
-  "pairedDevice": {
-    "message": "Paired on this device"
-  },
-  "notPaired": {
-    "message": "Not paired"
-  },
-  "tokenLocal": {
-    "message": "The token is held in local extension storage."
   },
   "pairCodeHelp": {
     "message": "Open the local pairing page, then enter its one-time code."
@@ -173,17 +167,8 @@
   "connecting": {
     "message": "Connecting..."
   },
-  "serverVoicesReady": {
-    "message": "Server voices are ready."
-  },
-  "serverNoVoices": {
-    "message": "Paired, but no server voice is available."
-  },
-  "disconnect": {
-    "message": "Disconnect"
-  },
   "serverFootnote": {
-    "message": "The server only accepts extension requests from its paired browser. Models download from pinned revisions on first use."
+    "message": "The server listens only on 127.0.0.1 and answers this extension. Models download from pinned revisions on first use."
   },
   "readingHeading": {
     "message": "Reading behavior"
@@ -258,7 +243,7 @@
     "message": "Models on this device"
   },
   "modelsHelp": {
-    "message": "Weights stay in local Cache Storage and are checked before use."
+    "message": "Remove a model to free space. It downloads again the next time a voice needs it."
   },
   "download": {
     "message": "Download"
@@ -304,9 +289,6 @@
   },
   "serverPaired": {
     "message": "Paired. The token is stored on this device, not synced."
-  },
-  "serverDisconnected": {
-    "message": "Local server disconnected."
   },
   "auditionFailure": {
     "message": "Voice audition failed."
@@ -433,5 +415,155 @@
   },
   "serverUpdate": {
     "message": "Server update available. Run the latest installer to update."
+  },
+  "speedAndVoice": {
+    "message": "Speed and voice"
+  },
+  "groupSystemVoices": {
+    "message": "System voices"
+  },
+  "groupOnDevice": {
+    "message": "On-device models"
+  },
+  "groupOnDeviceHint": {
+    "message": "Natural voices that run in the browser. Each downloads once."
+  },
+  "groupServerHint": {
+    "message": "Larger models served by the companion app on this Mac."
+  },
+  "groupSystemHint": {
+    "message": "Built into your operating system. Instant, with exact word timing."
+  },
+  "auditionLanguage": {
+    "message": "Voice language"
+  },
+  "downloadAndPlay": {
+    "message": "Download and play sample"
+  },
+  "showFewerVoices": {
+    "message": "Show fewer"
+  },
+  "showAllVoices": {
+    "message": "Show all $1"
+  },
+  "downloadingVoice": {
+    "message": "Downloading $1%"
+  },
+  "serverStateFailure": {
+    "message": "Could not check the local server."
+  },
+  "serverStartSlow": {
+    "message": "The server has not answered yet. It may still be starting."
+  },
+  "serverStarting": {
+    "message": "Starting the server..."
+  },
+  "serverStopping": {
+    "message": "Stopping the server..."
+  },
+  "serverWait": {
+    "message": "This can take a few seconds."
+  },
+  "serverChecking": {
+    "message": "Checking the local server..."
+  },
+  "serverRunning": {
+    "message": "Running"
+  },
+  "serverRunningVersion": {
+    "message": "Running · version $1"
+  },
+  "serverConnected": {
+    "message": "Connected · $1 voices"
+  },
+  "serverOffSetting": {
+    "message": "Turn on “Use the local server” to use its voices."
+  },
+  "serverConnectFailed": {
+    "message": "The extension could not connect. Run the installer again."
+  },
+  "serverNeedsPairing": {
+    "message": "Pair it with a code below to use its voices."
+  },
+  "serverStopped": {
+    "message": "Stopped"
+  },
+  "serverStoppedDetail": {
+    "message": "Start it to use server voices. It stays off until you start it."
+  },
+  "serverServiceMissing": {
+    "message": "The server service is missing. Run the installer again."
+  },
+  "serverNotFound": {
+    "message": "Not installed"
+  },
+  "serverNotFoundDetail": {
+    "message": "Run ./server/install.sh from the Open Speechy folder, then come back to this page."
+  },
+  "startServer": {
+    "message": "Start"
+  },
+  "stopServer": {
+    "message": "Stop"
+  },
+  "pairManually": {
+    "message": "Pair with a code"
+  },
+  "auditionDownloading": {
+    "message": "Downloading $1%"
+  },
+  "auditionPreparing": {
+    "message": "Preparing..."
+  },
+  "auditionPlaying": {
+    "message": "Playing"
+  },
+  "modelChecking": {
+    "message": "Checking"
+  },
+  "modelPreparing": {
+    "message": "Preparing"
+  },
+  "modelLoaded": {
+    "message": "Loaded"
+  },
+  "modelDownloaded": {
+    "message": "Downloaded"
+  },
+  "preparing": {
+    "message": "Preparing..."
+  },
+  "remove": {
+    "message": "Remove"
+  },
+  "error": {
+    "message": "Error"
+  },
+  "modelsBrowserHeading": {
+    "message": "In this browser"
+  },
+  "modelsBrowserHint": {
+    "message": "Stored in this browser and checked before use."
+  },
+  "modelsServerHeading": {
+    "message": "On the local server"
+  },
+  "modelsServerHint": {
+    "message": "Downloaded by the companion server when a voice is first used."
+  },
+  "alignerModel": {
+    "message": "Word timing aligner"
+  },
+  "alignerModelHelp": {
+    "message": "Optional. Exact word highlights for SILMA and Chatterbox; Kokoro times its words without it."
+  },
+  "serverModelFailure": {
+    "message": "The server could not do that."
+  },
+  "serverModelRemoved": {
+    "message": "$1 removed. $2 freed."
+  },
+  "serverModelsUpdate": {
+    "message": "Run the latest server installer to manage server models here."
   }
 }

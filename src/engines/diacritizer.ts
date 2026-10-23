@@ -1,5 +1,6 @@
 import * as ort from "onnxruntime-web";
 import type { ModelManager } from "../models/manager";
+import { packagedUrl } from "./packaged-url";
 
 const ARABIC_MARK = /[\u064b-\u065f\u0670]/u;
 const ARABIC_BASE = /[\u0621-\u064a\u066e-\u06d3\u06fa-\u06fc]/u;
@@ -195,7 +196,7 @@ export function createLibTashkeelPredictor(
       models.readFile(DIACRITIZER_MODEL_ID, onnxFile.url),
       models.readFile(DIACRITIZER_MODEL_ID, mapsFile.url),
     ]);
-    ort.env.wasm.wasmPaths = chrome.runtime.getURL("ort/");
+    ort.env.wasm.wasmPaths = packagedUrl("ort/");
     const session = await ort.InferenceSession.create(onnxBytes, {
       executionProviders: ["wasm"],
     });

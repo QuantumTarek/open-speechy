@@ -92,6 +92,24 @@ def test_server_requires_extension_origin_and_bearer_token() -> None:
     assert response.json()["engines"][0]["id"] == "fake"
 
 
+def test_extension_get_requests_without_origin_still_need_the_token() -> None:
+    # Chrome sends no Origin on GET from an extension with host permission.
+    client, _ = make_client()
+
+    assert client.get("/health").status_code == 401
+    assert (
+        client.get("/voices", headers={"Authorization": "Bearer wrong"}).status_code
+        == 401
+    )
+    assert (
+        client.get(
+            "/voices",
+            headers={"Authorization": "Bearer test-secret"},
+        ).status_code
+        == 200
+    )
+
+
 def test_voices_and_synthesis_follow_the_api_contract() -> None:
     client, _ = make_client()
 
@@ -180,3 +198,39 @@ def test_server_refuses_non_loopback_bind_configuration() -> None:
         assert "must bind to 127.0.0.1" in str(error)
     else:
         raise AssertionError("A public bind address must be rejected.")
+
+
+def test_a_valid_code_moves_pairing_to_a_reinstalled_extension() -> None:
+    client, pairing = make_client()
+    new_origin = f"chrome-extension://{'b' * 32}"
+
+    paired = client.post(
+        "/pair",
+        headers={"Origin": new_origin},
+        json={"code": pairing.current_code()},
+    )
+
+    assert paired.status_code == 200
+    assert paired.json()["token"] == "test-secret"
+    assert (
+        client.get(
+            "/health",
+            headers={**HEADERS, "Origin": new_origin},
+        ).status_code
+        == 200
+    )
+    assert client.get("/health", headers=HEADERS).status_code == 403
+
+
+def test_pairing_page_shows_the_code_to_a_tab_but_not_to_fetches() -> None:
+    client, pairing = make_client()
+
+    page = client.get("/pair", headers={"Sec-Fetch-Mode": "navigate"})
+    assert page.status_code == 200
+    assert pairing.current_code() in page.text
+    fetched = client.get(
+        "/pair",
+        headers={"Origin": ORIGIN, "Sec-Fetch-Mode": "cors"},
+    )
+    assert fetched.status_code == 403
+    assert pairing.current_code() not in fetched.text

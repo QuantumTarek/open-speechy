@@ -1,6 +1,7 @@
 .output/
 .wxt/
 public/ort/
+public/ort-transformers/
 node_modules/
 coverage/
 playwright-report/

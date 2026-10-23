@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { selectVoice } from "../../src/engines/router";
-import { mapSystemVoice } from "../../src/engines/system";
+import { mapSystemVoice, mapSystemVoices } from "../../src/engines/system";
+import {
+  browserVoiceCatalog,
+  kokoroVoiceDescription,
+  kokoroVoiceName,
+} from "../../src/engines/voice-catalog";
 import type { VoiceInfo } from "../../src/engines/types";
 
 const SYSTEM_EVENTS: NonNullable<chrome.tts.TtsVoice["eventTypes"]> = [
@@ -172,5 +177,40 @@ describe("voice selection", () => {
       })?.local,
     ).toBe(false);
     expect(mapSystemVoice({ voiceName: "Unknown" })).toBeUndefined();
+  });
+
+  it("lists only Premium and Enhanced system voices", () => {
+    for (const voiceName of [
+      "Samantha",
+      "Daniel (English (UK))",
+      "Majed",
+      "Bubbles",
+      "Eddy (English (US))",
+      "Kathy (Compact)",
+    ]) {
+      expect(
+        mapSystemVoice({ voiceName, lang: "en-US", remote: false }),
+      ).toBeUndefined();
+    }
+    for (const voiceName of ["Evan (Enhanced)", "Ava (Premium)"]) {
+      expect(
+        mapSystemVoice({ voiceName, lang: "en-US", remote: false }),
+      ).toBeDefined();
+    }
+  });
+
+  it("lists a voice that macOS reports twice once", () => {
+    const majed = { voiceName: "Majed (Enhanced)", lang: "ar-001", remote: false };
+    expect(mapSystemVoices([majed, majed])).toHaveLength(1);
+  });
+
+  it("gives Kokoro voices readable names", () => {
+    expect(kokoroVoiceName("af_heart")).toBe("Heart");
+    expect(kokoroVoiceDescription("af_heart")).toBe("American · female");
+    expect(kokoroVoiceDescription("bm_george")).toBe("British · male");
+    const heart = browserVoiceCatalog().find(
+      (candidate) => candidate.id === "kokoro:af_heart",
+    );
+    expect(heart).toMatchObject({ name: "Heart", description: "American · female" });
   });
 });

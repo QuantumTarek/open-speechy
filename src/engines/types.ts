@@ -5,6 +5,7 @@ export interface VoiceInfo {
   engineId: EngineId;
   lang: Lang;
   name: string;
+  description?: string;
   quality: 'premium' | 'enhanced' | 'standard' | 'compact';
   local: boolean;
   supportsWordTimings: boolean;

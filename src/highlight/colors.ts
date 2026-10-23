@@ -3,10 +3,19 @@ export interface HighlightColors {
   sentence: string;
 }
 
-const DARK_COLORS: HighlightColors = {
-  word: "rgba(255, 213, 110, 0.72)",
-  sentence: "rgba(95, 184, 170, 0.28)",
+export interface PageHighlightColors extends HighlightColors {
+  // Highlighted text is redrawn in this color so it reads on the fill.
+  text: string;
+}
+
+// Speechify's palette for dark pages. Light pages use the saved colors, which
+// default to Speechify's light palette.
+const DARK_COLORS: PageHighlightColors = {
+  word: "#5666f0",
+  sentence: "#444766",
+  text: "#ffffff",
 };
+const LIGHT_TEXT = "#000000";
 
 export function isDarkPage(document: Document, root: Element | null): boolean {
   let element: Element | null = root;
@@ -37,8 +46,10 @@ export function highlightColors(
   document: Document,
   root: Element | null,
   preferences: HighlightColors,
-): HighlightColors {
-  return isDarkPage(document, root) ? DARK_COLORS : preferences;
+): PageHighlightColors {
+  return isDarkPage(document, root)
+    ? DARK_COLORS
+    : { word: preferences.word, sentence: preferences.sentence, text: LIGHT_TEXT };
 }
 
 function luminance(red: number, green: number, blue: number): number {

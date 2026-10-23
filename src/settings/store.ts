@@ -37,10 +37,11 @@ export type SettingsPatch = Omit<
 export const DEFAULT_SETTINGS: AppSettings = {
   voice: { en: "auto", ar: "auto" },
   speed: 1,
+  // Speechify's default palette for light pages.
   highlight: {
     enabled: true,
-    word: "rgba(255, 179, 0, 0.6)",
-    sentence: "rgba(255, 213, 79, 0.25)",
+    word: "#abb3fe",
+    sentence: "#e0e3ff",
   },
   autoScroll: true,
   lookahead: 2,
@@ -67,7 +68,6 @@ export interface SettingsStorage {
 export class SettingsStore {
   readonly #syncStorage: SettingsStorage;
   readonly #localStorage: SettingsStorage;
-  #current: AppSettings | null = null;
 
   constructor(
     syncStorage: SettingsStorage = chrome.storage.sync,
@@ -77,14 +77,15 @@ export class SettingsStore {
     this.#localStorage = localStorage;
   }
 
+  // Always read from storage: the service worker saves the server token on its
+  // own, and a cached copy would write the old one back on the next update.
   async load(): Promise<AppSettings> {
-    if (this.#current) return structuredClone(this.#current);
     const [stored, local] = await Promise.all([
       this.#syncStorage.get(null),
       this.#localStorage.get("openSpeechyServerToken"),
     ]);
     const localToken = local.openSpeechyServerToken;
-    this.#current = mergeSettings({
+    return mergeSettings({
       ...stored,
       server: {
         ...(stored.server as Partial<AppSettings["server"]> | undefined),
@@ -94,12 +95,11 @@ export class SettingsStore {
             : getStoredServerToken(stored.server),
       },
     });
-    return structuredClone(this.#current);
   }
 
   async update(patch: SettingsPatch): Promise<AppSettings> {
     const current = await this.load();
-    this.#current = mergeSettings({
+    const next = mergeSettings({
       ...current,
       ...patch,
       voice: { ...current.voice, ...patch.voice },
@@ -109,18 +109,18 @@ export class SettingsStore {
       server: { ...current.server, ...patch.server },
     });
     const syncedSettings = {
-      ...this.#current,
-      server: { ...this.#current.server, token: "" },
+      ...next,
+      server: { ...next.server, token: "" },
     };
     await Promise.all([
       this.#syncStorage.set(
         syncedSettings as unknown as Record<string, unknown>,
       ),
       this.#localStorage.set({
-        openSpeechyServerToken: this.#current.server.token,
+        openSpeechyServerToken: next.server.token,
       }),
     ]);
-    return structuredClone(this.#current);
+    return next;
   }
 }
 
@@ -201,8 +201,15 @@ function booleanOr(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+// Earlier defaults. Settings saved with them move to the current palette.
+const LEGACY_HIGHLIGHT_COLORS = new Set([
+  "rgba(255, 179, 0, 0.6)",
+  "rgba(255, 213, 79, 0.25)",
+]);
+
 function colorOr(value: unknown, fallback: string): string {
   if (typeof value !== "string" || value.length > 64) return fallback;
+  if (LEGACY_HIGHLIGHT_COLORS.has(value)) return fallback;
   return /^(?:#[\da-f]{3,8}|rgba?\([\d\s.,%]+\))$/iu.test(value)
     ? value
     : fallback;

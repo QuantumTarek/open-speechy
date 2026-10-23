@@ -1,6 +1,7 @@
-import { mapSystemVoice, SystemTtsEngine } from "../engines/system";
+import { mapSystemVoices, SystemTtsEngine } from "../engines/system";
 import { selectVoice } from "../engines/router";
-import { ServerEngine } from "../engines/server";
+import type { ServerModel } from "../engines/server";
+import { ServerConnection } from "../engines/server-connection";
 import type { Lang, VoiceInfo } from "../engines/types";
 import { browserVoiceCatalog } from "../engines/voice-catalog";
 import { SettingsStore } from "../settings/store";
@@ -12,9 +13,14 @@ import { defineBackground } from "wxt/utils/define-background";
 let activeTabId: number | null = null;
 let activeSystemSession: SystemSpeechSession | null = null;
 let idleUnloadTimer: ReturnType<typeof setTimeout> | null = null;
-let cachedServerEngine:
-  | { url: string; token: string; engine: ServerEngine }
-  | null = null;
+let pendingAudition: {
+  voiceId: string;
+  resolve: () => void;
+  reject: (error: Error) => void;
+  // Restarts the timeout. A first download can take minutes.
+  touch: () => void;
+} | null = null;
+const serverConnection = new ServerConnection(new SettingsStore());
 let activeSession:
   | {
       tabId: number;
@@ -73,14 +79,22 @@ export default defineBackground(() => {
       });
     });
     void updatePdfInterceptRule();
+    void serverConnection.engine().catch(() => null);
   });
 
   chrome.runtime.onStartup.addListener(() => {
     void updatePdfInterceptRule();
+    void serverConnection.engine().catch(() => null);
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "sync" && changes.pdf) void updatePdfInterceptRule();
+  });
+
+  // Audio plays from the offscreen document, so closing the tab that shows the
+  // player would otherwise leave it reading with no way to stop it.
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    void stopReadingInTab(tabId);
   });
 
   chrome.action.onClicked.addListener((tab) => {
@@ -137,6 +151,50 @@ export default defineBackground(() => {
                 error instanceof Error
                   ? error.message
                   : "Could not start playback.",
+            }),
+          );
+        return true;
+      }
+
+      if (
+        value.type === "server/state" ||
+        value.type === "server/start" ||
+        value.type === "server/stop"
+      ) {
+        const action =
+          value.type === "server/start"
+            ? serverConnection.start()
+            : value.type === "server/stop"
+              ? serverConnection.stop()
+              : serverConnection.state();
+        void action
+          .then((state) => sendResponse({ ok: true, state }))
+          .catch((error: unknown) =>
+            sendResponse({
+              ok: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "The local server could not be reached.",
+            }),
+          );
+        return true;
+      }
+
+      if (
+        value.type === "server/models" ||
+        value.type === "server/model-prepare" ||
+        value.type === "server/model-remove"
+      ) {
+        void manageServerModels(value)
+          .then((result) => sendResponse({ ok: true, ...result }))
+          .catch((error: unknown) =>
+            sendResponse({
+              ok: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "The local server could not be reached.",
             }),
           );
         return true;
@@ -270,12 +328,15 @@ async function startSession(
   activeTabId = tabId;
   await chrome.storage.session.set({ openSpeechyActiveTab: tabId });
   clearIdleUnloadTimer();
+  pendingAudition?.reject(new Error("Reading started."));
+  pendingAudition = null;
   await stopActiveOutput();
 
   const lang = message.sentences[0]?.lang ?? "en";
   const store = new SettingsStore();
-  const settings = await store.load();
+  // Discovery may connect to the server and save its token, so load after it.
   const discovered = await discoverVoices(true);
+  const settings = await store.load();
   const langs = [...new Set(message.sentences.map((sentence) => sentence.lang))];
   const selectedVoices = new Map<Lang, VoiceInfo>();
   const voiceIds: Record<Lang, string> = {
@@ -339,21 +400,6 @@ async function startSession(
     await store.update({ voice: { [overrideLang]: message.voiceId } });
   }
 
-  if (
-    Object.values(voiceIds).some((voiceId) => voiceId.startsWith("server:")) &&
-    cachedServerEngine?.engine.isReady()
-  ) {
-    const engineIds = [
-      ...new Set(
-        Object.values(voiceIds)
-          .filter((voiceId) => voiceId.startsWith("server:"))
-          .map((voiceId) => voiceId.split(":")[1])
-          .filter((engineId): engineId is string => Boolean(engineId)),
-      ),
-    ];
-    await cachedServerEngine.engine.warmup(engineIds).catch(() => {});
-  }
-
   if (useSystemVoice) {
     const session = new SystemSpeechSession(
       new SystemTtsEngine(selection),
@@ -388,6 +434,11 @@ async function startSession(
       voiceId: selection.id,
       voiceIds,
       speed,
+      server:
+        settings.server.enabled && settings.server.token
+          ? { url: settings.server.url, token: settings.server.token }
+          : undefined,
+      diacritizeArabic: settings.arabic.diacritize,
     });
   }
 
@@ -483,6 +534,33 @@ async function forwardSessionEvent(
         ? stored.openSpeechyActiveTab
         : null;
   }
+  if (pendingAudition) {
+    const { event } = message;
+    pendingAudition.touch();
+    if (event.type === "session/state") {
+      if (event.state === "ended") pendingAudition.resolve();
+      else if (event.state === "error") {
+        pendingAudition.reject(
+          new Error(event.error ?? "Could not audition this voice."),
+        );
+      }
+    }
+    if (event.type === "session/state" || event.type === "session/progress") {
+      // The options page shows the download and playback on the voice card.
+      void chrome.runtime
+        .sendMessage({
+          type: "voice/audition-status",
+          voiceId: pendingAudition.voiceId,
+          state: event.state,
+          progress:
+            event.type === "session/progress" && (event.progress ?? 1) < 1
+              ? event.progress
+              : undefined,
+        } satisfies RuntimeMessage)
+        .catch(() => {});
+    }
+    return;
+  }
   if (
     message.event.type === "session/sentence-start" &&
     activeSession &&
@@ -518,7 +596,8 @@ async function handleSessionCommand(
       return;
     }
     const lang = message.lang ?? activeSession.lang;
-    const startWordIndex = activeSession.currentWordIndex ?? undefined;
+    const startWordIndex =
+      message.wordIndex ?? activeSession.currentWordIndex ?? undefined;
     await startSession(tabId, {
       type: "session/start",
       sentences: activeSession.sentences,
@@ -584,6 +663,19 @@ async function handleSessionCommand(
   }
 }
 
+async function stopReadingInTab(tabId: number): Promise<void> {
+  if (activeTabId === null) {
+    // The service worker may have restarted since reading began.
+    const stored = await chrome.storage.session.get("openSpeechyActiveTab");
+    if (stored.openSpeechyActiveTab !== tabId) return;
+  } else if (activeTabId !== tabId) {
+    return;
+  }
+  await stopActiveOutput();
+  activeTabId = null;
+  await chrome.storage.session.remove("openSpeechyActiveTab");
+}
+
 async function stopActiveOutput(): Promise<void> {
   clearIdleUnloadTimer();
   activeSystemSession?.stop();
@@ -644,38 +736,22 @@ async function discoverVoices(
   } catch {
     chromeVoices = [];
   }
-  const system = chromeVoices.flatMap((raw) => {
-    const voice = mapSystemVoice(raw);
-    return voice ? [{ voice, eventTypes: raw.eventTypes ?? [] }] : [];
-  });
+  const system = mapSystemVoices(chromeVoices);
   const local = browserVoiceCatalog();
-  const settings = await new SettingsStore().load();
   let serverVoices: VoiceInfo[] = [];
   let serverHealthy = false;
-  if (settings.server.enabled && settings.server.token) {
-    try {
-      if (
-        !cachedServerEngine ||
-        cachedServerEngine.url !== settings.server.url ||
-        cachedServerEngine.token !== settings.server.token
-      ) {
-        cachedServerEngine = {
-          url: settings.server.url,
-          token: settings.server.token,
-          engine: new ServerEngine(settings.server.url, settings.server.token),
-        };
-      }
-      serverHealthy = Boolean(
-        await cachedServerEngine.engine.health(refreshServer),
-      );
-      if (serverHealthy) {
-        serverVoices = await cachedServerEngine.engine.listVoices();
-      }
-    } catch {
-      serverVoices = [];
-      serverHealthy = false;
+  try {
+    // Connects through the native host when there is no working token yet.
+    const engine = await serverConnection.engine(refreshServer);
+    if (engine) {
+      serverVoices = await engine.listVoices();
+      serverHealthy = true;
     }
+  } catch {
+    serverVoices = [];
+    serverHealthy = false;
   }
+  const settings = await new SettingsStore().load();
   return {
     system,
     local,
@@ -684,6 +760,26 @@ async function discoverVoices(
     serverHealthy,
     list: [...system.map(({ voice }) => voice), ...serverVoices, ...local],
   };
+}
+
+async function manageServerModels(
+  message: Extract<
+    RuntimeMessage,
+    { type: "server/models" | "server/model-prepare" | "server/model-remove" }
+  >,
+): Promise<{ models: ServerModel[] | null; freedBytes?: number }> {
+  const engine = await serverConnection.engine();
+  if (!engine) {
+    if (message.type === "server/models") return { models: null };
+    throw new Error("The local server is not connected.");
+  }
+  let freedBytes: number | undefined;
+  if (message.type === "server/model-prepare") {
+    await engine.prepareModel(message.modelId);
+  } else if (message.type === "server/model-remove") {
+    freedBytes = await engine.removeModel(message.modelId);
+  }
+  return { models: await engine.models(), freedBytes };
 }
 
 async function listAvailableVoices(): Promise<VoiceInfo[]> {
@@ -695,13 +791,12 @@ async function auditionVoice(voiceId: string): Promise<void> {
     (candidate) => candidate.id === voiceId,
   );
   if (!voice) throw new Error("That voice is no longer available.");
-  if (voice.engineId !== "system") {
-    throw new Error(
-      "On-device model audition is unavailable until its verified model files are installed.",
-    );
-  }
   const sentence = voice.lang === "ar" ? "مرحبًا، هذا صوت محلي." : "This is a local voice sample.";
   const words = sentence.split(/\s+/u);
+  if (voice.engineId !== "system") {
+    await auditionOffscreenVoice(voice, sentence, words);
+    return;
+  }
   const engine = new SystemTtsEngine(voice);
 
   await new Promise<void>((resolve, reject) => {
@@ -733,6 +828,74 @@ async function auditionVoice(voiceId: string): Promise<void> {
       },
     );
   });
+}
+
+// Plays the sample through the offscreen engines. The first use of a voice
+// downloads its model, so the timeout allows for that.
+async function auditionOffscreenVoice(
+  voice: VoiceInfo,
+  sentence: string,
+  words: string[],
+): Promise<void> {
+  pendingAudition?.reject(new Error("Another voice audition started."));
+  await stopActiveOutput();
+  const settings = await new SettingsStore().load();
+  let handle: NonNullable<typeof pendingAudition> | null = null;
+  const finished = new Promise<void>((resolve, reject) => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const touch = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(
+        () => reject(new Error("Voice audition timed out.")),
+        3 * 60_000,
+      );
+    };
+    touch();
+    handle = {
+      voiceId: voice.id,
+      touch,
+      resolve: () => {
+        clearTimeout(timeout);
+        resolve();
+      },
+      reject: (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    };
+  });
+  pendingAudition = handle;
+  try {
+    await ensureOffscreen();
+    await sendToOffscreen({
+      type: "offscreen/session-start",
+      sentences: [
+        {
+          id: "voice-audition",
+          index: 0,
+          paragraphIndex: 0,
+          lang: voice.lang,
+          text: sentence,
+          words: words.map((word, index) => ({
+            index,
+            display: word,
+            spoken: [word],
+          })),
+        },
+      ],
+      voiceId: voice.id,
+      voiceIds: { [voice.lang]: voice.id },
+      speed: 1,
+      server:
+        settings.server.enabled && settings.server.token
+          ? { url: settings.server.url, token: settings.server.token }
+          : undefined,
+      diacritizeArabic: settings.arabic.diacritize,
+    });
+    await finished;
+  } finally {
+    if (pendingAudition === handle) pendingAudition = null;
+  }
 }
 
 function clampSpeed(speed: number): number {

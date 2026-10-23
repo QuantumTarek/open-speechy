@@ -45,12 +45,22 @@ export function isAutomaticSystemVoice(
   );
 }
 
+// Only Premium and Enhanced voices sound natural. The rest are the compact
+// defaults, novelty voices and the older MacinTalk and Eloquence voices.
+// Platforms that do not label quality this way list no system voices.
+export function isNaturalSystemVoice(voiceName: string): boolean {
+  const quality = systemVoiceQuality(voiceName);
+  return quality === "premium" || quality === "enhanced";
+}
+
 export function mapSystemVoice(
   voice: chrome.tts.TtsVoice,
 ): VoiceInfo | undefined {
   const voiceName = voice.voiceName?.trim();
   const lang = normalizeLanguage(voice.lang);
-  if (!voiceName || !lang) return undefined;
+  if (!voiceName || !lang || !isNaturalSystemVoice(voiceName)) {
+    return undefined;
+  }
   return {
     id: `system:${voice.lang ?? lang}:${voiceName}`,
     engineId: "system",
@@ -61,6 +71,20 @@ export function mapSystemVoice(
     supportsWordTimings: systemVoiceSupportsWordEvents(voice),
     installed: true,
   };
+}
+
+// macOS can report the same voice twice, for example a Siri and a regular
+// variant with one name. Keep the first so voice IDs stay unique.
+export function mapSystemVoices(
+  voices: chrome.tts.TtsVoice[],
+): Array<{ voice: VoiceInfo; eventTypes: string[] }> {
+  const seen = new Set<string>();
+  return voices.flatMap((raw) => {
+    const voice = mapSystemVoice(raw);
+    if (!voice || seen.has(voice.id)) return [];
+    seen.add(voice.id);
+    return [{ voice, eventTypes: raw.eventTypes ?? [] }];
+  });
 }
 
 export function wordIndexAtCharIndex(
@@ -101,11 +125,9 @@ export class SystemTtsEngine implements StreamingSpeechEngine {
   }
 
   async listVoices(): Promise<VoiceInfo[]> {
-    const voices = await this.#api.getVoices();
-    return voices.flatMap((voice) => {
-      const mapped = mapSystemVoice(voice);
-      return mapped ? [mapped] : [];
-    });
+    return mapSystemVoices(await this.#api.getVoices()).map(
+      ({ voice }) => voice,
+    );
   }
 
   speak(

@@ -5,6 +5,8 @@ import contextlib
 import importlib.util
 import io
 import os
+import sys
+import types
 from collections.abc import Callable
 from importlib.resources import files
 from pathlib import Path
@@ -17,7 +19,9 @@ from .base import EngineUnavailable, Synthesis, float_pcm_to_wav
 
 class SilmaEngine:
     id = "silma"
+    title = "SILMA"
     langs = ("ar", "en")
+    models = ("silma", "silma_vocoder")
 
     def __init__(
         self,
@@ -117,6 +121,7 @@ class SilmaEngine:
         device: str,
     ) -> object:
         try:
+            _stub_nemo_normalizer()
             import silma_tts.api as silma_api
             import silma_tts.infer.utils_infer as silma_utils
         except ImportError as error:
@@ -200,6 +205,34 @@ class SilmaEngine:
             raise EngineUnavailable("SILMA returned no audio.")
         return samples, int(sample_rate)
 
-    async def dispose(self) -> None:
+    def unload(self) -> None:
         self._model = None
         self.loaded = False
+
+    async def dispose(self) -> None:
+        self.unload()
+
+
+def _stub_nemo_normalizer() -> None:
+    """Let silma_tts import where nemo_text_processing is not installed.
+
+    silma_tts imports NeMo's Normalizer at module level. NeMo needs pynini, which
+    has no macOS wheels, so it is left out on macOS. This server creates SILMA
+    with enable_normalizer=False and calls infer with normalize_numbers=False,
+    so the Normalizer is never constructed.
+    """
+    if importlib.util.find_spec("nemo_text_processing") is not None:
+        return
+
+    class Normalizer:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise EngineUnavailable("NeMo text normalization is not installed.")
+
+    names = (
+        "nemo_text_processing",
+        "nemo_text_processing.text_normalization",
+        "nemo_text_processing.text_normalization.normalize",
+    )
+    for name in names:
+        sys.modules.setdefault(name, types.ModuleType(name))
+    sys.modules[names[-1]].Normalizer = Normalizer  # type: ignore[attr-defined]

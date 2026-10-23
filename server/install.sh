@@ -18,11 +18,20 @@ UV_PATH="$(command -v uv)"
 mkdir -p "$BASE_DIR"
 chmod 700 "$BASE_DIR"
 mkdir -p "$SERVER_DIR"
-cp -R "$SOURCE_DIR/." "$SERVER_DIR/"
+# Skip local dev artifacts: a .venv from the source checkout would otherwise be
+# copied over and reused by uv sync.
+rsync -a --delete \
+  --exclude .venv --exclude __pycache__ --exclude .pytest_cache \
+  --exclude .ruff_cache --exclude '*.egg-info' --exclude tests \
+  "$SOURCE_DIR/" "$SERVER_DIR/"
 
 uv sync --project "$SERVER_DIR" --python 3.11 --no-dev --extra engines
 OPEN_SPEECHY_TOKEN_FILE="$BASE_DIR/token" \
   uv run --project "$SERVER_DIR" python "$SERVER_DIR/auth.py" >/dev/null
+# The native messaging host lets the extension connect without a pairing code
+# and start or stop the server.
+echo "Registered the extension helper for:"
+python3 "$SERVER_DIR/native_host_manifest.py" install "$BASE_DIR" | sed 's/^/  /'
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   PLIST_DIR="$HOME/Library/LaunchAgents"
@@ -62,14 +71,17 @@ with target.open("wb") as output_file:
 PY
   chmod 600 "$PLIST_PATH"
   launchctl bootout "gui/$(id -u)" "$PLIST_PATH" >/dev/null 2>&1 || true
+  # Stopping the server from the extension disables the agent.
+  launchctl enable "gui/$(id -u)/dev.openspeechy.server"
   launchctl bootstrap "gui/$(id -u)" "$PLIST_PATH"
   echo "Open Speechy local server will start at login."
 else
-  echo "Server files are installed. Start it with:"
+  echo "Server files are installed. Start the server from the extension settings,"
+  echo "or run:"
   printf '  (cd "%s" && uv run --project "%s" python -m server.app)\n' \
     "$BASE_DIR" "$SERVER_DIR"
 fi
 
 echo "Token file: $BASE_DIR/token"
-echo "Open the extension settings, choose Local server, and pair with the code at:"
-echo "  http://127.0.0.1:5123/pair"
+echo "Reload Open Speechy in chrome://extensions. It connects to the server on its own."
+echo "In a browser not listed above, pair with the code at http://127.0.0.1:5123/pair"

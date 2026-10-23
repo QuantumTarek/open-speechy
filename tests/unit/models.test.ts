@@ -97,6 +97,29 @@ describe("model manager", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it("calls the global fetch with its own receiver by default", async () => {
+    // Browsers throw "Illegal invocation" when fetch runs with another `this`.
+    const { storage } = makeCache();
+    const originalFetch = globalThis.fetch;
+    const strictFetch = vi.fn(function (this: unknown) {
+      if (this !== globalThis && this !== undefined) {
+        throw new TypeError("Illegal invocation");
+      }
+      return Promise.resolve(new Response(new Uint8Array([1, 2, 3])));
+    });
+    globalThis.fetch = strictFetch as unknown as typeof fetch;
+    try {
+      const manager = new ModelManager([VALID_MODEL], {
+        cacheStorage: storage,
+        sleep: async () => {},
+      });
+      await manager.download("sample-model");
+      expect(strictFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("serves only verified manifest files to Transformers.js", async () => {
     const { storage } = makeCache();
     const manager = new ModelManager([VALID_MODEL], {

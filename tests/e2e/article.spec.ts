@@ -265,3 +265,73 @@ function getCurrentWordText(): string {
   });
   return text;
 }
+
+test("stops reading when its tab is reloaded or closed", async () => {
+  test.skip(!existsSync(extensionPath), "Build the test extension first.");
+
+  const userDataDir = await mkdtemp(join(tmpdir(), "open-speechy-leave-"));
+  let context: BrowserContext | null = null;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      channel: "chromium",
+      headless: true,
+      args: [
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`,
+      ],
+    });
+    const worker =
+      context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+    // Record what the offscreen session reports to the service worker.
+    await worker.evaluate(() => {
+      const scope = self as unknown as {
+        sessionLog: Array<{ at: number; kind: string }>;
+      };
+      scope.sessionLog = [];
+      chrome.runtime.onMessage.addListener((message) => {
+        if (message?.type !== "offscreen/session-event") return;
+        const { event } = message;
+        scope.sessionLog.push({
+          at: Date.now(),
+          kind: event.type === "session/state" ? event.state : event.type,
+        });
+      });
+    });
+    const logSince = (since: number) =>
+      worker.evaluate(
+        (start) =>
+          (
+            self as unknown as { sessionLog: Array<{ at: number; kind: string }> }
+          ).sessionLog
+            .filter((entry) => entry.at >= start)
+            .map((entry) => entry.kind),
+        since,
+      );
+
+    for (const leave of ["reload", "close"] as const) {
+      const page = await context.newPage();
+      await page.goto("/en-article.html");
+      await page.evaluate(() =>
+        document.dispatchEvent(new Event("open-speechy-test-start")),
+      );
+      await expect
+        .poll(() => page.evaluate(getCurrentWordText), { timeout: 10_000 })
+        .not.toBe("");
+
+      const left = await worker.evaluate(() => Date.now());
+      if (leave === "reload") await page.reload();
+      else await page.close();
+
+      await expect
+        .poll(() => logSince(left), { timeout: 5_000 })
+        .toContain("idle");
+      const stoppedAt = await worker.evaluate(() => Date.now());
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      expect(await logSince(stoppedAt)).not.toContain("session/sentence-start");
+      if (leave === "reload") await page.close();
+    }
+  } finally {
+    await context?.close();
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});

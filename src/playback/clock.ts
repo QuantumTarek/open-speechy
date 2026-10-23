@@ -8,6 +8,7 @@ export interface ClockSegment {
   durationMs: number;
   rate: number;
   startedAtPerf: number;
+  generation?: number;
 }
 
 export interface ClockTick {
@@ -22,6 +23,7 @@ export class PlaybackClock {
   #frameId = 0;
   #pausedAt: number | null = null;
   #lastWordIndex: number | null = null;
+  #generation = 0;
 
   constructor(highlighter: Highlighter, onTick: (tick: ClockTick) => void) {
     this.#highlighter = highlighter;
@@ -29,6 +31,14 @@ export class PlaybackClock {
   }
 
   addSegment(segment: ClockSegment): void {
+    // After a seek the session reschedules from a new generation. Audio queued
+    // before it was stopped, so its segments must not highlight later words.
+    const generation = segment.generation ?? this.#generation;
+    if (generation < this.#generation) return;
+    if (generation > this.#generation) {
+      this.#generation = generation;
+      this.#segments.length = 0;
+    }
     this.#segments.push(segment);
     this.#segments.sort(
       (left, right) => left.startedAtPerf - right.startedAtPerf,

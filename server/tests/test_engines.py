@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from server.align import word_spans_to_timings
+from server.align import mms_transcript, token_word_timings, word_spans_to_timings
 from server.engines.chatterbox_ml import ChatterboxMultilingualEngine
 from server.engines.chatterbox_nano import ChatterboxNanoEngine
 from server.engines.kokoro import KOKORO_VOICES, KokoroEngine
@@ -14,11 +14,11 @@ from server.model_store import model_pin
 
 class FakeKokoroPipeline:
     def __init__(self, **kwargs: object) -> None:
-        assert kwargs == {"lang_code": "a", "repo_id": "/pinned/kokoro"}
+        assert kwargs["lang_code"] in {"a", "b"}
 
     def __call__(self, text: str, voice: str, speed: float):
         assert text == "hello there"
-        assert voice == "af_heart"
+        assert voice == "/pinned/kokoro/voices/af_heart.pt"
         assert speed == 1.0
         return [(None, None, [0.1, -0.1, 0.2])]
 
@@ -164,3 +164,90 @@ def test_model_engine_voices_do_not_require_the_old_opt_in_flag(monkeypatch) -> 
         ]
     )
     assert registry.voices()
+
+
+def test_mms_transcript_keeps_one_aligner_token_per_word() -> None:
+    assert mms_transcript(["Reading,", "2024", "don't", "—"], "en") == [
+        "reading",
+        "*",
+        "don't",
+        "*",
+    ]
+
+
+def test_kokoro_voices_have_readable_names() -> None:
+    voices = KokoroEngine(pipeline_factory=FakeKokoroPipeline).voices()
+    heart = next(voice for voice in voices if voice["id"] == "server:kokoro:af_heart")
+    george = next(
+        voice for voice in voices if voice["id"] == "server:kokoro:bm_george"
+    )
+    assert heart["name"] == "Heart"
+    assert heart["description"] == "American · female · Kokoro"
+    assert george["description"] == "British · male · Kokoro"
+
+
+class TimedToken:
+    def __init__(self, text: str, start: float | None, end: float | None) -> None:
+        self.text = text
+        self.start_ts = start
+        self.end_ts = end
+
+
+class TimedResult:
+    """Kokoro's pipeline result: unpacks to (graphemes, phonemes, audio)."""
+
+    def __init__(self, audio: list[float], tokens: list[TimedToken]) -> None:
+        self.audio = audio
+        self.tokens = tokens
+
+    def __iter__(self):
+        return iter(("", "", self.audio))
+
+
+class TimedKokoroPipeline:
+    def __init__(self, **kwargs: object) -> None:
+        pass
+
+    def __call__(self, text: str, voice: str, speed: float):
+        # Two parts, each timed from its own start; 24 samples = 1 ms.
+        return [
+            TimedResult(
+                [0.0] * 24_000,
+                [TimedToken("Hello", 0.1, 0.4), TimedToken(",", None, None)],
+            ),
+            TimedResult(
+                [0.0] * 24_000,
+                [TimedToken("there", 0.2, 0.7), TimedToken(".", None, None)],
+            ),
+        ]
+
+
+def test_kokoro_times_words_itself() -> None:
+    engine = KokoroEngine(
+        pipeline_factory=TimedKokoroPipeline,
+        snapshot_provider=lambda _: Path("/pinned/kokoro"),
+    )
+
+    async def run():
+        await engine.warmup()
+        return await engine.synthesize(
+            ["Hello,", "there."], "en", 1.0, "server:kokoro:af_heart"
+        )
+
+    result = asyncio.run(run())
+    assert result.timing_source == "model"
+    assert result.timings == [
+        {"wordIndex": 0, "startMs": 100.0, "endMs": 400.0},
+        {"wordIndex": 1, "startMs": 1_200.0, "endMs": 1_700.0},
+    ]
+    assert engine.aligns_words is False
+
+
+def test_token_timings_fill_unmatched_words_and_give_up_when_most_miss() -> None:
+    tokens = [("one", 0.0, 0.2), ("three", 0.5, 0.8)]
+    assert token_word_timings(["one", "two", "three"], tokens) == [
+        {"wordIndex": 0, "startMs": 0.0, "endMs": 200.0},
+        {"wordIndex": 1, "startMs": 200.0, "endMs": 500.0},
+        {"wordIndex": 2, "startMs": 500.0, "endMs": 800.0},
+    ]
+    assert token_word_timings(["one", "two", "three"], [("zzz", 0, 1)]) is None

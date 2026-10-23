@@ -31,13 +31,30 @@ export const KOKORO_VOICES = [
   "bm_lewis",
 ] as const;
 
+const KOKORO_ACCENTS: Record<string, string> = {
+  a: "American",
+  b: "British",
+};
+
+// "af_heart" -> "Heart", described as "American · female".
+export function kokoroVoiceName(voice: string): string {
+  const name = voice.split("_").slice(1).join(" ");
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+export function kokoroVoiceDescription(voice: string): string {
+  const accent = KOKORO_ACCENTS[voice.charAt(0)] ?? "English";
+  return `${accent} · ${voice.charAt(1) === "m" ? "male" : "female"}`;
+}
+
 export function browserVoiceCatalog(): VoiceInfo[] {
   return [
     ...KOKORO_VOICES.map((name) => ({
       id: `kokoro:${name}`,
       engineId: "kokoro" as const,
       lang: "en" as const,
-      name,
+      name: kokoroVoiceName(name),
+      description: kokoroVoiceDescription(name),
       quality: "standard" as const,
       local: true,
       supportsWordTimings: false,
@@ -49,6 +66,7 @@ export function browserVoiceCatalog(): VoiceInfo[] {
       engineId: "piper",
       lang: "ar",
       name: "Kareem",
+      description: "Jordanian Arabic · male",
       quality: "standard",
       local: true,
       supportsWordTimings: false,

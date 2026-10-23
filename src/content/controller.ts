@@ -30,6 +30,7 @@ export class ContentController {
   #state: SessionState = "idle";
   #error: string | undefined;
   #notice: string | undefined;
+  #downloadProgress: number | null = null;
   #currentWordIndex: number | null = null;
   #driftMs = 0;
   #speed = 1;
@@ -90,6 +91,11 @@ export class ContentController {
       })
       .catch(() => {});
     chrome.storage.onChanged.addListener(this.#handleStorageChange);
+    // Reloading or leaving the page ends its reading. Same-page URL changes
+    // do not fire pagehide, and the service worker handles a closed tab.
+    this.window.addEventListener("pagehide", () => {
+      if (this.#player) void this.#send({ type: "session/control", action: "stop" });
+    });
 
     if (
       typeof __OPEN_SPEECHY_FAKE_ENGINE__ !== "undefined" &&
@@ -217,6 +223,7 @@ export class ContentController {
     this.#state = "loading";
     this.#error = undefined;
     this.#setNotice(undefined);
+    this.#downloadProgress = null;
     this.#currentWordIndex = null;
     this.#showPlayer(sentences);
     if (source === "article" && this.#readRoot) {
@@ -320,6 +327,7 @@ export class ContentController {
       autoScroll: this.#settings.autoScroll,
       wordColor: colors.word,
       sentenceColor: colors.sentence,
+      textColor: colors.text,
     };
   }
 
@@ -381,7 +389,14 @@ export class ContentController {
     if (event.type === "session/notice" && event.message) {
       this.#setNotice(event.message);
       this.#render();
+    } else if (event.type === "session/progress") {
+      const progress = event.progress ?? 1;
+      this.#downloadProgress = progress >= 1 ? null : progress;
+      this.#render();
     } else if (event.type === "session/state" && event.state) {
+      if (event.state === "error" || event.state === "idle") {
+        this.#downloadProgress = null;
+      }
       this.#setState(event.state, event.error);
       this.#clock?.setPaused(event.state === "paused");
       if (event.state === "idle" || event.state === "ended") {
@@ -401,14 +416,15 @@ export class ContentController {
       event.timings &&
       event.durationMs !== undefined &&
       event.rate !== undefined &&
-      event.startedAtPerf !== undefined
+      event.startedAtMs !== undefined
     ) {
       this.#clock?.addSegment({
         sentenceId: event.sentenceId,
         timings: event.timings,
         durationMs: event.durationMs,
         rate: event.rate,
-        startedAtPerf: event.startedAtPerf,
+        startedAtPerf: event.startedAtMs - performance.timeOrigin,
+        generation: event.generation,
       });
     }
   }
@@ -486,6 +502,7 @@ export class ContentController {
       status: this.#state,
       error: this.#error,
       notice: this.#notice,
+      downloadProgress: this.#downloadProgress,
       totalWords,
       currentWordIndex: this.#currentWordIndex,
       driftMs: this.#driftMs,
@@ -517,6 +534,7 @@ export class ContentController {
           type: "session/set-voice",
           voiceId,
           lang: voiceLang,
+          wordIndex: this.#currentWordIndex ?? undefined,
         });
       },
       onClose: () => {

@@ -2,8 +2,11 @@ import { FakeEngine, isTestEngineEnabled } from "../../engines/fake";
 import { LanguageRouterEngine } from "../../engines/language-router";
 import { ServerEngine } from "../../engines/server";
 import type { TtsEngine } from "../../engines/types";
+import {
+  LocalEngineWorker,
+  WorkerEngine,
+} from "../../engines/worker-engine";
 import type { SessionEvent } from "../../messaging/protocol";
-import { SettingsStore } from "../../settings/store";
 import { FakeAudioPlayer, WebAudioPlayer } from "../../playback/audio-player";
 import { SessionQueue, type PlayableSentence } from "../../playback/session";
 import {
@@ -12,6 +15,14 @@ import {
 } from "../../messaging/protocol";
 
 let queue: SessionQueue | null = null;
+let lastProgressPercent = -1;
+const localEngines = new LocalEngineWorker(
+  () =>
+    new Worker(
+      new URL("../../engines/local-engine.worker.ts", import.meta.url),
+      { type: "module", name: "open-speechy-engines" },
+    ),
+);
 
 chrome.runtime.onMessage.addListener(
   (value: unknown, _sender, sendResponse) => {
@@ -62,22 +73,33 @@ async function startSession(
   message: Extract<RuntimeMessage, { type: "offscreen/session-start" }>,
 ): Promise<void> {
   await queue?.dispose();
+  lastProgressPercent = -1;
   let engine: TtsEngine;
   if (isTestEngineEnabled()) {
     engine = new FakeEngine();
   } else {
-    const settings = await new SettingsStore().load();
     const lang = message.sentences[0]?.lang ?? "en";
     const voiceIds = { ...message.voiceIds };
     if (!voiceIds[lang] && message.voiceId) voiceIds[lang] = message.voiceId;
     engine = new LanguageRouterEngine({
       voiceIds,
-      server:
-        settings.server.enabled && settings.server.token
-          ? new ServerEngine(settings.server.url, settings.server.token)
-          : undefined,
-      diacritizeArabic: settings.arabic.diacritize,
+      server: message.server
+        ? new ServerEngine(message.server.url, message.server.token)
+        : undefined,
+      createKokoro: () => new WorkerEngine("kokoro", localEngines),
+      createPiper: () =>
+        new WorkerEngine(
+          "piper",
+          localEngines,
+          message.diacritizeArabic ?? false,
+        ),
       onFallback: (notice) => void emit({ type: "session/notice", message: notice }),
+      onDownloadProgress: (fraction) => {
+        const percent = Math.floor(fraction * 100);
+        if (percent === lastProgressPercent) return;
+        lastProgressPercent = percent;
+        void emit({ type: "session/progress", progress: fraction });
+      },
     });
   }
   const audio = isTestEngineEnabled()
@@ -87,15 +109,18 @@ async function startSession(
     onState(state, error) {
       void emit({ type: "session/state", state, error });
     },
-    onSentenceStart(event) {
+    onSentenceStart({ startedAtPerf, ...event }) {
       void emit({
         type: "session/sentence-start",
         ...event,
+        startedAtMs: performance.timeOrigin + startedAtPerf,
       });
     },
   });
   queue = nextQueue;
-  await nextQueue.start(message.sentences as PlayableSentence[], {
+  // start() reports its own failures through onState. Not awaiting it lets the
+  // service worker answer the tab (voices, selection) before synthesis ends.
+  void nextQueue.start(message.sentences as PlayableSentence[], {
     startWordIndex: message.startWordIndex,
     voiceId: message.voiceId,
     speed: message.speed,

@@ -5,7 +5,12 @@ import {
   ModelUnavailableError,
 } from "../models/manager";
 import { MODEL_DESCRIPTORS } from "../models/catalog";
-import { KOKORO_VOICES } from "./voice-catalog";
+import {
+  KOKORO_VOICES,
+  kokoroVoiceDescription,
+  kokoroVoiceName,
+} from "./voice-catalog";
+import { packagedUrl } from "./packaged-url";
 import { estimateWordTimings } from "./timings";
 import type {
   SynthesisRequest,
@@ -57,7 +62,8 @@ export class KokoroEngine implements TtsEngine {
       id: `kokoro:${voice}`,
       engineId: "kokoro",
       lang: "en",
-      name: voice,
+      name: kokoroVoiceName(voice),
+      description: kokoroVoiceDescription(voice),
       quality: "standard",
       local: true,
       supportsWordTimings: false,
@@ -125,12 +131,14 @@ export class KokoroEngine implements TtsEngine {
       });
     }
 
-    kokoroEnv.wasmPaths = chrome.runtime.getURL("ort/");
+    kokoroEnv.wasmPaths = packagedUrl("ort-transformers/");
     const model = this.#models.get(MODEL_ID);
     if (!model?.revision) {
       throw new ModelUnavailableError(MODEL_ID, "the revision is not pinned");
     }
-    transformersEnv.allowRemoteModels = false;
+    // transformers.js rejects a config with both sources off. The verified cache
+    // is still read first, and remote fetches are pinned and SHA-checked on put.
+    transformersEnv.allowRemoteModels = true;
     transformersEnv.allowLocalModels = false;
     transformersEnv.useFS = false;
     transformersEnv.useFSCache = false;
@@ -168,8 +176,23 @@ export class KokoroEngine implements TtsEngine {
     if (!(await this.#models.isInstalled(modelId))) {
       await this.#models.download(modelId);
     }
+    await this.#seedKokoroVoiceCache(voice, modelId);
+  }
+
+  // kokoro-js always fetches voices from the unpinned `main` branch through its
+  // own cache. Seed that cache with the verified pinned file so it never does.
+  async #seedKokoroVoiceCache(voice: string, modelId: string): Promise<void> {
+    const cache = await caches.open(KOKORO_JS_VOICE_CACHE);
+    const url = `https://huggingface.co/${MODEL_REPO}/resolve/main/voices/${voice}.bin`;
+    if (await cache.match(url)) return;
+    const file = this.#models.get(modelId)?.files[0];
+    if (!file) return;
+    const bytes = await this.#models.readFile(modelId, file.url);
+    await cache.put(url, new Response(bytes));
   }
 }
+
+const KOKORO_JS_VOICE_CACHE = "kokoro-voices";
 
 function voiceModelId(voice: string): string {
   return `kokoro-voice-${voice}`;

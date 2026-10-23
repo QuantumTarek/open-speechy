@@ -68,6 +68,9 @@
   "preparingVoice": {
     "message": "جارٍ تجهيز الصوت"
   },
+  "buffering": {
+    "message": "جارٍ التحميل المؤقت"
+  },
   "wordProgress": {
     "message": "الكلمة $1 من $2"
   },
@@ -111,7 +114,7 @@
     "message": "تلقائي"
   },
   "modelNotInstalled": {
-    "message": "النموذج غير مثبت"
+    "message": "يُنزَّل عند أول استخدام"
   },
   "macOS": {
     "message": "على macOS"
@@ -123,7 +126,7 @@
     "message": "استمع إلى الأصوات"
   },
   "auditionHelp": {
-    "message": "يقرأ كل صوت نظام متاح العينة القصيرة نفسها."
+    "message": "شغّل عيّنة قصيرة من أي صوت. تُنزَّل الأصوات المحلية عند تشغيلها أول مرة."
   },
   "playingSample": {
     "message": "جارٍ التشغيل..."
@@ -141,19 +144,10 @@
     "message": "تتم معالجة الصوت الاختيارية على 127.0.0.1."
   },
   "serverUse": {
-    "message": "استخدم الخادم المحلي عند الاقتران"
+    "message": "استخدام الخادم المحلي"
   },
   "serverUseHelp": {
     "message": "أوقف هذا الخيار لاستخدام أصوات المتصفح والنظام فقط."
-  },
-  "pairedDevice": {
-    "message": "مقترن على هذا الجهاز"
-  },
-  "notPaired": {
-    "message": "غير مقترن"
-  },
-  "tokenLocal": {
-    "message": "يُحفظ الرمز في مساحة التخزين المحلية للإضافة."
   },
   "pairCodeHelp": {
     "message": "افتح صفحة الاقتران المحلية ثم أدخل الرمز لمرة واحدة."
@@ -173,17 +167,8 @@
   "connecting": {
     "message": "جارٍ الاتصال..."
   },
-  "serverVoicesReady": {
-    "message": "أصوات الخادم جاهزة."
-  },
-  "serverNoVoices": {
-    "message": "تم الاقتران، لكن لا يتوفر صوت على الخادم."
-  },
-  "disconnect": {
-    "message": "إلغاء الاتصال"
-  },
   "serverFootnote": {
-    "message": "يقبل الخادم الطلبات من المتصفح المقترن فقط. تُنزّل النماذج من إصدارات مثبتة عند أول استخدام."
+    "message": "يستمع الخادم على 127.0.0.1 فقط ويجيب هذه الإضافة. تُنزَّل النماذج من إصدارات مثبتة عند أول استخدام."
   },
   "readingHeading": {
     "message": "سلوك القراءة"
@@ -258,7 +243,7 @@
     "message": "النماذج على هذا الجهاز"
   },
   "modelsHelp": {
-    "message": "تُحفظ الأوزان في التخزين المحلي ويجري التحقق منها قبل الاستخدام."
+    "message": "أزل نموذجًا لتوفير المساحة. سيُنزَّل مجددًا عندما يحتاجه صوت."
   },
   "download": {
     "message": "تنزيل"
@@ -304,9 +289,6 @@
   },
   "serverPaired": {
     "message": "تم الاقتران. يُحفظ الرمز على هذا الجهاز ولا تتم مزامنته."
-  },
-  "serverDisconnected": {
-    "message": "تم قطع اتصال الخادم المحلي."
   },
   "auditionFailure": {
     "message": "تعذر تشغيل عينة الصوت."
@@ -433,5 +415,155 @@
   },
   "serverUpdate": {
     "message": "يتوفر تحديث للخادم. شغّل أحدث برنامج تثبيت للتحديث."
+  },
+  "speedAndVoice": {
+    "message": "السرعة والصوت"
+  },
+  "groupSystemVoices": {
+    "message": "أصوات النظام"
+  },
+  "groupOnDevice": {
+    "message": "نماذج على الجهاز"
+  },
+  "groupOnDeviceHint": {
+    "message": "أصوات طبيعية تعمل داخل المتصفح. يُنزَّل كل منها مرة واحدة."
+  },
+  "groupServerHint": {
+    "message": "نماذج أكبر يقدّمها التطبيق المرافق على هذا الجهاز."
+  },
+  "groupSystemHint": {
+    "message": "مدمجة في نظام التشغيل. فورية، مع توقيت دقيق للكلمات."
+  },
+  "auditionLanguage": {
+    "message": "لغة الصوت"
+  },
+  "downloadAndPlay": {
+    "message": "تنزيل وتشغيل العيّنة"
+  },
+  "showFewerVoices": {
+    "message": "عرض أقل"
+  },
+  "showAllVoices": {
+    "message": "عرض الكل ($1)"
+  },
+  "downloadingVoice": {
+    "message": "جارٍ التنزيل $1%"
+  },
+  "serverStateFailure": {
+    "message": "تعذّر فحص الخادم المحلي."
+  },
+  "serverStartSlow": {
+    "message": "لم يستجب الخادم بعد. ربما لا يزال قيد التشغيل."
+  },
+  "serverStarting": {
+    "message": "جارٍ تشغيل الخادم..."
+  },
+  "serverStopping": {
+    "message": "جارٍ إيقاف الخادم..."
+  },
+  "serverWait": {
+    "message": "قد يستغرق ذلك بضع ثوانٍ."
+  },
+  "serverChecking": {
+    "message": "جارٍ فحص الخادم المحلي..."
+  },
+  "serverRunning": {
+    "message": "يعمل"
+  },
+  "serverRunningVersion": {
+    "message": "يعمل · الإصدار $1"
+  },
+  "serverConnected": {
+    "message": "متصل · $1 صوتًا"
+  },
+  "serverOffSetting": {
+    "message": "فعّل «استخدام الخادم المحلي» لاستخدام أصواته."
+  },
+  "serverConnectFailed": {
+    "message": "تعذّر على الإضافة الاتصال. شغّل المثبّت مرة أخرى."
+  },
+  "serverNeedsPairing": {
+    "message": "اقرنه برمز أدناه لاستخدام أصواته."
+  },
+  "serverStopped": {
+    "message": "متوقف"
+  },
+  "serverStoppedDetail": {
+    "message": "شغّله لاستخدام أصوات الخادم. يبقى متوقفًا حتى تشغّله."
+  },
+  "serverServiceMissing": {
+    "message": "خدمة الخادم غير موجودة. شغّل المثبّت مرة أخرى."
+  },
+  "serverNotFound": {
+    "message": "غير مثبّت"
+  },
+  "serverNotFoundDetail": {
+    "message": "شغّل ‎./server/install.sh‎ من مجلد Open Speechy، ثم ارجع إلى هذه الصفحة."
+  },
+  "startServer": {
+    "message": "تشغيل"
+  },
+  "stopServer": {
+    "message": "إيقاف"
+  },
+  "pairManually": {
+    "message": "الإقران برمز"
+  },
+  "auditionDownloading": {
+    "message": "جارٍ التنزيل $1%"
+  },
+  "auditionPreparing": {
+    "message": "جارٍ التجهيز..."
+  },
+  "auditionPlaying": {
+    "message": "قيد التشغيل"
+  },
+  "modelChecking": {
+    "message": "جارٍ الفحص"
+  },
+  "modelPreparing": {
+    "message": "قيد التجهيز"
+  },
+  "modelLoaded": {
+    "message": "محمّل"
+  },
+  "modelDownloaded": {
+    "message": "منزّل"
+  },
+  "preparing": {
+    "message": "جارٍ التجهيز..."
+  },
+  "remove": {
+    "message": "إزالة"
+  },
+  "error": {
+    "message": "خطأ"
+  },
+  "modelsBrowserHeading": {
+    "message": "في هذا المتصفح"
+  },
+  "modelsBrowserHint": {
+    "message": "تُحفظ في هذا المتصفح ويجري التحقق منها قبل الاستخدام."
+  },
+  "modelsServerHeading": {
+    "message": "على الخادم المحلي"
+  },
+  "modelsServerHint": {
+    "message": "ينزّلها الخادم المرافق عند أول استخدام للصوت."
+  },
+  "alignerModel": {
+    "message": "مُحاذي توقيت الكلمات"
+  },
+  "alignerModelHelp": {
+    "message": "اختياري. تظليل دقيق للكلمات مع أصوات SILMA وChatterbox؛ يضبط Kokoro توقيت كلماته من دونه."
+  },
+  "serverModelFailure": {
+    "message": "تعذّر على الخادم تنفيذ ذلك."
+  },
+  "serverModelRemoved": {
+    "message": "أُزيل $1. تحرّرت مساحة $2."
+  },
+  "serverModelsUpdate": {
+    "message": "شغّل أحدث مثبّت للخادم لإدارة نماذجه من هنا."
   }
 }

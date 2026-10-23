@@ -18,20 +18,26 @@ export interface HighlighterOptions {
   reducedMotion?: boolean;
   wordColor?: string;
   sentenceColor?: string;
+  textColor?: string;
   onJumpVisibilityChange?: (visible: boolean) => void;
 }
 
-const DEFAULT_WORD_COLOR = "rgba(255, 179, 0, 0.6)";
-const DEFAULT_SENTENCE_COLOR = "rgba(255, 213, 79, 0.25)";
+const DEFAULT_WORD_COLOR = "#abb3fe";
+const DEFAULT_SENTENCE_COLOR = "#e0e3ff";
 
-function styleText(wordColor: string, sentenceColor: string): string {
+function styleText(
+  wordColor: string,
+  sentenceColor: string,
+  textColor: string,
+): string {
   return `
   ::highlight(os-sentence) {
     background-color: ${sentenceColor};
+    color: ${textColor};
   }
   ::highlight(os-word) {
     background-color: ${wordColor};
-    color: inherit;
+    color: ${textColor};
   }
 `;
 }
@@ -59,6 +65,7 @@ export class Highlighter {
   #reducedMotion: boolean;
   #wordColor: string;
   #sentenceColor: string;
+  #textColor: string;
   #manualScrollUntil = 0;
   #programmaticScrollUntil = 0;
   #manualScrollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -75,6 +82,7 @@ export class Highlighter {
     this.#reducedMotion = options.reducedMotion ?? isReducedMotion(document);
     this.#wordColor = options.wordColor ?? DEFAULT_WORD_COLOR;
     this.#sentenceColor = options.sentenceColor ?? DEFAULT_SENTENCE_COLOR;
+    this.#textColor = options.textColor ?? "inherit";
     this.#onJumpVisibilityChange = options.onJumpVisibilityChange ?? (() => {});
     this.#installStyle();
     this.#document.addEventListener("pointerup", this.#handlePointerUp, true);
@@ -145,6 +153,7 @@ export class Highlighter {
     }
     if (options.wordColor) this.#wordColor = options.wordColor;
     if (options.sentenceColor) this.#sentenceColor = options.sentenceColor;
+    if (options.textColor) this.#textColor = options.textColor;
     this.#replaceStyle();
     this.#currentWord = null;
     this.#currentSentence = null;
@@ -183,9 +192,7 @@ export class Highlighter {
       return;
     }
     const sentence = this.#sentences.get(sentenceId ?? current.sentenceId);
-    const sentenceRanges = (sentence ?? []).flatMap((index) =>
-      this.#rangesForWord(index),
-    );
+    const sentenceRanges = this.#rangesForSentence(sentence ?? []);
     const wordRanges = this.#rangesForWord(wordIndex);
     if (sentenceRanges.length > 0) {
       registry.set("os-sentence", new Highlight(...sentenceRanges));
@@ -243,6 +250,32 @@ export class Highlighter {
     });
   }
 
+  // One band per text node, from the sentence's first word in it to its last,
+  // so the spaces between words are filled as well.
+  #rangesForSentence(wordIndices: number[]): Range[] {
+    const spans = new Map<Text, { start: number; end: number }>();
+    for (const index of wordIndices) {
+      for (const piece of this.#words.get(index)?.pieces ?? []) {
+        const span = spans.get(piece.node);
+        spans.set(piece.node, {
+          start: Math.min(span?.start ?? piece.start, piece.start),
+          end: Math.max(span?.end ?? piece.end, piece.end),
+        });
+      }
+    }
+    return [...spans].flatMap(([node, span]) => {
+      if (!node.isConnected) return [];
+      try {
+        const range = this.#document.createRange();
+        range.setStart(node, span.start);
+        range.setEnd(node, span.end);
+        return [range];
+      } catch {
+        return [];
+      }
+    });
+  }
+
   #registry(): HighlightRegistry | null {
     return typeof CSS !== "undefined" && "highlights" in CSS
       ? CSS.highlights
@@ -250,7 +283,11 @@ export class Highlighter {
   }
 
   #installStyle(): void {
-    const text = styleText(this.#wordColor, this.#sentenceColor);
+    const text = styleText(
+      this.#wordColor,
+      this.#sentenceColor,
+      this.#textColor,
+    );
     try {
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(text);
@@ -269,7 +306,11 @@ export class Highlighter {
   }
 
   #replaceStyle(): void {
-    const text = styleText(this.#wordColor, this.#sentenceColor);
+    const text = styleText(
+      this.#wordColor,
+      this.#sentenceColor,
+      this.#textColor,
+    );
     if (this.#styleSheet) {
       this.#styleSheet.replaceSync(text);
     } else if (this.#styleElement) {

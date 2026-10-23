@@ -1,8 +1,8 @@
 [project]
 name = "open-speechy-server"
-version = "0.1.0"
+version = "0.2.0"
 description = "Loopback-only local speech server for Open Speechy"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.30,<1",
@@ -16,11 +16,26 @@ dev = [
 ]
 engines = [
   "chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox.git@5de7a54aa4e5e2baadb0182dde554908b48b85c2",
-  "huggingface-hub>=0.25,<1",
+  # Kokoro's English G2P loads this spaCy model and would otherwise try to
+  # pip-install it at runtime.
+  "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+  "huggingface-hub>=0.25,<2",
   "kokoro==0.9.4",
+  "onnxruntime>=1.17; sys_platform == 'darwin'",
   "silma-tts==1.0.5",
   "torchaudio>=2.6,<2.7",
   "uroman>=1.3",
+]
+
+[tool.uv]
+# silma-tts pulls in packages that do not install everywhere: catt-tashkeel
+# requires onnxruntime-gpu (no macOS wheels), and nemo-text-processing requires
+# pynini (Linux wheels only). The server never uses NeMo at runtime (see
+# engines/silma.py), so it is skipped off Linux, and macOS gets the CPU
+# onnxruntime instead.
+override-dependencies = [
+  "onnxruntime-gpu; sys_platform != 'darwin'",
+  "nemo-text-processing==1.1.0; sys_platform == 'linux'",
 ]
 
 [tool.setuptools]

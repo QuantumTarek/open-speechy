@@ -95,4 +95,119 @@ describe("per-language engine routing", () => {
     expect(kokoro.requests).toHaveLength(2);
     expect(notices).toHaveLength(1);
   });
+
+  it("prepares a server voice once, reporting its download", async () => {
+    class PreparingServer extends FakeEngine {
+      prepared = 0;
+
+      async prepareVoice(
+        _voiceId: string,
+        onProgress: (progress: {
+          stage: "downloading" | "loading";
+          loaded: number;
+          total: number;
+        }) => void,
+      ): Promise<void> {
+        this.prepared += 1;
+        onProgress({ stage: "downloading", loaded: 50, total: 200 });
+        onProgress({ stage: "downloading", loaded: 200, total: 200 });
+        onProgress({ stage: "loading", loaded: 0, total: 0 });
+      }
+    }
+    const server = new PreparingServer("server");
+    const reported: number[] = [];
+    const router = new LanguageRouterEngine({
+      voiceIds: { en: "server:kokoro:af_heart" },
+      server,
+      createKokoro: () => new FakeEngine("kokoro"),
+      createPiper: () => new FakeEngine("piper"),
+      onDownloadProgress: (fraction) => reported.push(fraction),
+    });
+
+    await Promise.all([
+      router.synthesize(REQUEST, new AbortController().signal),
+      router.synthesize(REQUEST, new AbortController().signal),
+    ]);
+
+    expect(server.prepared).toBe(1);
+    expect(server.requests).toHaveLength(2);
+    expect(reported).toEqual([0.25, 1, 1]);
+  });
+
+  it("explains a failed server preparation and reads in the browser", async () => {
+    class FailingServer extends FakeEngine {
+      async prepareVoice(): Promise<void> {
+        throw new Error("Could not download the word aligner.");
+      }
+    }
+    const kokoro = new FakeEngine("kokoro");
+    const notices: string[] = [];
+    const router = new LanguageRouterEngine({
+      voiceIds: { en: "server:kokoro:af_heart" },
+      server: new FailingServer("server"),
+      createKokoro: () => kokoro,
+      createPiper: () => new FakeEngine("piper"),
+      onFallback: (message) => notices.push(message),
+    });
+
+    await router.synthesize(REQUEST, new AbortController().signal);
+
+    expect(kokoro.requests).toHaveLength(1);
+    expect(notices).toEqual([
+      "Could not download the word aligner. Switching to in-browser voices.",
+    ]);
+  });
+
+  it("reports first-use downloads but not cache loads", async () => {
+    class LoadingEngine extends FakeEngine {
+      #ready = false;
+
+      constructor(
+        private readonly stages: Array<{ loaded: number; stage: string }>,
+      ) {
+        super("kokoro");
+      }
+
+      override isReady(): boolean {
+        return this.#ready;
+      }
+
+      override async init(
+        onProgress?: (progress: {
+          loaded: number;
+          total: number;
+          stage: string;
+        }) => void,
+      ): Promise<void> {
+        for (const { loaded, stage } of this.stages) {
+          onProgress?.({ loaded, total: 100, stage });
+        }
+        this.#ready = true;
+      }
+    }
+
+    const progressFor = async (
+      stages: Array<{ loaded: number; stage: string }>,
+    ) => {
+      const reported: number[] = [];
+      const router = new LanguageRouterEngine({
+        voiceIds: { en: "kokoro:af_heart" },
+        createKokoro: () => new LoadingEngine(stages),
+        createPiper: () => new FakeEngine("piper"),
+        onDownloadProgress: (fraction) => reported.push(fraction),
+      });
+      await router.synthesize(REQUEST, new AbortController().signal);
+      await router.synthesize(REQUEST, new AbortController().signal);
+      return reported;
+    };
+
+    expect(
+      await progressFor([
+        { loaded: 40, stage: "downloading" },
+        { loaded: 100, stage: "verified" },
+        { loaded: 100, stage: "progress" },
+      ]),
+    ).toEqual([0.4, 1, 1]);
+    expect(await progressFor([{ loaded: 100, stage: "ready" }])).toEqual([]);
+  });
 });

@@ -48,6 +48,40 @@ describe("settings", () => {
     expect((await store.load()).server.url).toBe(DEFAULT_SETTINGS.server.url);
   });
 
+  it("keeps a server token another context saved since it loaded", async () => {
+    const storage = new MemorySettings();
+    const localStorage = new MemorySettings();
+    const optionsPage = new SettingsStore(storage, localStorage);
+    await optionsPage.load();
+
+    await new SettingsStore(storage, localStorage).update({
+      server: { token: "auto-connected" },
+    });
+    const updated = await optionsPage.update({ speed: 1.5 });
+
+    expect(updated.server.token).toBe("auto-connected");
+    expect(localStorage.values.openSpeechyServerToken).toBe("auto-connected");
+  });
+
+  it("uses Speechify's palette and moves the old default colors to it", async () => {
+    const sync = new MemorySettings();
+    sync.values.highlight = {
+      enabled: true,
+      word: "rgba(255, 179, 0, 0.6)",
+      sentence: "rgba(255, 213, 79, 0.25)",
+    };
+    const store = new SettingsStore(sync, new MemorySettings());
+
+    expect(DEFAULT_SETTINGS.highlight).toMatchObject({
+      word: "#abb3fe",
+      sentence: "#e0e3ff",
+    });
+    expect((await store.load()).highlight).toEqual(DEFAULT_SETTINGS.highlight);
+    expect(
+      (await store.update({ highlight: { word: "#123456" } })).highlight.word,
+    ).toBe("#123456");
+  });
+
   it("validates feature switches and highlight colors", async () => {
     const store = new SettingsStore(new MemorySettings(), new MemorySettings());
 

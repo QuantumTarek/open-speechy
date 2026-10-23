@@ -72,7 +72,7 @@ export class ModelManager {
     this.#cacheStorage =
       options.cacheStorage ??
       (typeof caches === "undefined" ? undefined : caches);
-    this.#fetch = options.fetcher ?? fetch;
+    this.#fetch = options.fetcher ?? fetch.bind(globalThis);
     this.#sleep =
       options.sleep ??
       ((milliseconds) =>

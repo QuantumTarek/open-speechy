@@ -3,6 +3,7 @@ import createPiperPhonemize from "@diffusionstudio/piper-wasm/build/piper_phonem
 import piperDataUrl from "@diffusionstudio/piper-wasm/build/piper_phonemize.data?url";
 import piperWasmUrl from "@diffusionstudio/piper-wasm/build/piper_phonemize.wasm?url";
 import { ArabicDiacritizer, createLibTashkeelPredictor } from "./diacritizer";
+import { packagedUrl } from "./packaged-url";
 import { parsePiperPhonemeOutput, piperScales } from "./piper-utils";
 import { estimateWordTimings } from "./timings";
 import type {
@@ -46,6 +47,7 @@ export class PiperEngine implements TtsEngine {
   #session: ort.InferenceSession | null = null;
   #modelConfig: PiperModelConfig | null = null;
   #phonemizerModule: Promise<PiperPhonemizeModule> | null = null;
+  #phonemizerOutput: string[] = [];
   #loading: Promise<void> | null = null;
 
   constructor(diacritize = false) {
@@ -75,6 +77,7 @@ export class PiperEngine implements TtsEngine {
         engineId: "piper",
         lang: "ar",
         name: "Kareem",
+        description: "Jordanian Arabic · male",
         quality: "standard",
         local: true,
         supportsWordTimings: false,
@@ -221,7 +224,7 @@ export class PiperEngine implements TtsEngine {
       throw new Error("The downloaded Piper voice configuration is invalid.");
     }
 
-    ort.env.wasm.wasmPaths = chrome.runtime.getURL("ort/");
+    ort.env.wasm.wasmPaths = packagedUrl("ort/");
     this.#session = await ort.InferenceSession.create(modelBytes, {
       executionProviders: ["wasm"],
     });
@@ -235,13 +238,15 @@ export class PiperEngine implements TtsEngine {
         if (path.endsWith(".data")) return piperDataUrl;
         return path;
       },
+      // Emscripten reads print once at startup, so it must be passed here.
+      print: (line) => this.#phonemizerOutput.push(line),
       printErr(message) {
         throw new Error(message);
       },
     });
     const module = await this.#phonemizerModule;
     const output: string[] = [];
-    module.print = (line) => output.push(line);
+    this.#phonemizerOutput = output;
     module.callMain([
       "-l",
       language,

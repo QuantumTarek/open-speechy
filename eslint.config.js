@@ -13,6 +13,7 @@ export default tseslint.config(
       "server/.venv/**",
       "coverage/**",
       "public/ort/**",
+      "public/ort-transformers/**",
       ".playwright/**",
       "test-results/**",
     ],

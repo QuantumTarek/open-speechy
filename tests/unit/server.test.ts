@@ -126,6 +126,49 @@ describe("local server engine", () => {
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
+  it("retries a failed health check after two seconds", async () => {
+    let now = 10_000;
+    const fetcher = vi.fn(async () => new Response("", { status: 503 }));
+    const engine = new ServerEngine("http://127.0.0.1:5123", "secret", {
+      fetcher,
+      now: () => now,
+    });
+
+    expect(await engine.health()).toBeNull();
+    expect(await engine.health()).toBeNull();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    now += 2_001;
+    await engine.health();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("calls the global fetch with its own receiver by default", async () => {
+    // Browsers throw "Illegal invocation" when fetch runs with another `this`.
+    const health: ServerHealth = {
+      ok: true,
+      version: "0.1.0",
+      device: "cpu",
+      engines: [],
+    };
+    const originalFetch = globalThis.fetch;
+    const strictFetch = vi.fn(function (this: unknown) {
+      if (this !== globalThis && this !== undefined) {
+        throw new TypeError("Illegal invocation");
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify(health), { status: 200 }),
+      );
+    });
+    globalThis.fetch = strictFetch as unknown as typeof fetch;
+    try {
+      const engine = new ServerEngine("http://127.0.0.1:5123", "secret");
+      expect(await engine.health()).toEqual(health);
+      expect(strictFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("falls back once when the server fails and avoids retrying it each sentence", async () => {
     const fetcher = vi.fn(async () =>
       new Response(JSON.stringify({ detail: "engine unavailable" }), {
@@ -152,5 +195,110 @@ describe("local server engine", () => {
     expect(notices).toEqual([
       "Local server unavailable. Switching to the in-browser voice.",
     ]);
+  });
+});
+
+describe("server models", () => {
+  function model(state: string, extra: Record<string, unknown> = {}) {
+    return {
+      id: "kokoro",
+      name: "Kokoro",
+      kind: "voice",
+      langs: ["en"],
+      bytes: 1_000,
+      downloadedBytes: 0,
+      state,
+      ...extra,
+    };
+  }
+
+  function respond(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), { status });
+  }
+
+  it("prepares a voice and reports its download, then its loading", async () => {
+    const states = [
+      model("missing"),
+      model("downloading", { progress: { downloaded: 400, total: 1_500 } }),
+      model("downloading", { progress: { downloaded: 1_500, total: 1_500 } }),
+      model("loading"),
+      model("loaded"),
+    ];
+    const calls: string[] = [];
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url.replace("http://127.0.0.1:5123", "")}`);
+      if (init?.method === "POST") return new Response(null, { status: 202 });
+      return respond({ models: [states.shift()] });
+    });
+    const engine = new ServerEngine("http://127.0.0.1:5123", "token", {
+      fetcher: fetcher as unknown as typeof fetch,
+      sleep: async () => {},
+    });
+    const progress: string[] = [];
+
+    await engine.prepareVoice("server:kokoro:af_heart", ({ stage, loaded, total }) =>
+      progress.push(`${stage} ${loaded}/${total}`),
+    );
+
+    expect(calls).toEqual([
+      "GET /models",
+      "POST /models/kokoro/prepare",
+      "GET /models",
+      "GET /models",
+      "GET /models",
+      "GET /models",
+    ]);
+    expect(progress).toEqual([
+      "downloading 400/1500",
+      "downloading 1500/1500",
+      "loading 0/0",
+    ]);
+  });
+
+  it("skips loaded voices and servers too old to list models", async () => {
+    for (const reply of [
+      respond({ models: [model("loaded")] }),
+      respond({ detail: "Not Found" }, 404),
+    ]) {
+      const fetcher = vi.fn(async () => reply);
+      const engine = new ServerEngine("http://127.0.0.1:5123", "token", {
+        fetcher: fetcher as unknown as typeof fetch,
+      });
+      await engine.prepareVoice("server:kokoro:af_heart", () => {});
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("fails with the server's reason when preparation fails", async () => {
+    const states = [
+      model("missing"),
+      model("error", { error: "Could not download the pinned kokoro model revision." }),
+    ];
+    const fetcher = vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? new Response(null, { status: 202 })
+        : respond({ models: [states.shift()] }),
+    );
+    const engine = new ServerEngine("http://127.0.0.1:5123", "token", {
+      fetcher: fetcher as unknown as typeof fetch,
+      sleep: async () => {},
+    });
+
+    await expect(
+      engine.prepareVoice("server:kokoro:af_heart", () => {}),
+    ).rejects.toThrow("Could not download the pinned kokoro model revision.");
+  });
+
+  it("removes a model and returns the freed bytes", async () => {
+    const fetcher = vi.fn(async () => respond({ freedBytes: 1_000 }));
+    const engine = new ServerEngine("http://127.0.0.1:5123", "token", {
+      fetcher: fetcher as unknown as typeof fetch,
+    });
+
+    expect(await engine.removeModel("aligner")).toBe(1_000);
+    expect(fetcher).toHaveBeenCalledWith(
+      "http://127.0.0.1:5123/models/aligner",
+      expect.objectContaining({ method: "DELETE" }),
+    );
   });
 });

@@ -10,9 +10,13 @@ import {
 import {
   normalizeServerUrl,
   serverUpdateAvailable,
+  type ServerModel,
 } from "../../engines/server";
+import type { ServerState } from "../../engines/server-connection";
 import { MODEL_CATALOG, MODEL_DESCRIPTORS } from "../../models/catalog";
 import { ModelManager, type ModelProgress } from "../../models/manager";
+import type { RuntimeMessage } from "../../messaging/protocol";
+import type { SessionState } from "../../playback/session";
 import { setDocumentLanguage, t } from "../../i18n";
 import "./options.css";
 
@@ -20,6 +24,26 @@ interface VoiceListResponse {
   ok?: boolean;
   voices?: VoiceInfo[];
   error?: string;
+}
+
+interface ServerStateResponse {
+  ok?: boolean;
+  state?: ServerState;
+  error?: string;
+}
+
+interface ServerModelsResponse {
+  ok?: boolean;
+  models?: ServerModel[] | null;
+  freedBytes?: number;
+  error?: string;
+}
+
+interface AuditionStatus {
+  voiceId: string;
+  // First-use download progress from 0 to 1, or null when not downloading.
+  progress: number | null;
+  state: SessionState | null;
 }
 
 const settingsStore = new SettingsStore();
@@ -32,18 +56,283 @@ interface ModelViewState {
   error?: string;
 }
 
+const SYSTEM_VOICE_PREVIEW = 6;
+
+const QUALITY_RANK: Record<VoiceInfo["quality"], number> = {
+  premium: 0,
+  enhanced: 1,
+  standard: 2,
+  compact: 3,
+};
+
+function auditionGroups(voices: VoiceInfo[], lang: Lang) {
+  const forLang = voices.filter((voice) => voice.lang === lang);
+  return [
+    {
+      id: "local",
+      title: t("groupOnDevice", "On-device models"),
+      hint: t(
+        "groupOnDeviceHint",
+        "Natural voices that run in the browser. Each downloads once.",
+      ),
+      voices: forLang.filter(
+        (voice) => voice.engineId === "kokoro" || voice.engineId === "piper",
+      ),
+    },
+    {
+      id: "server",
+      title: t("voiceLocalServer", "Local server"),
+      hint: t(
+        "groupServerHint",
+        "Larger models served by the companion app on this Mac.",
+      ),
+      voices: forLang.filter((voice) => voice.engineId === "server"),
+    },
+    {
+      id: "system",
+      title: t("groupSystemVoices", "System voices"),
+      hint: t(
+        "groupSystemHint",
+        "Built into your operating system. Instant, with exact word timing.",
+      ),
+      voices: forLang
+        .filter((voice) => voice.engineId === "system")
+        .sort(
+          (a, b) =>
+            QUALITY_RANK[a.quality] - QUALITY_RANK[b.quality] ||
+            a.name.localeCompare(b.name),
+        ),
+    },
+  ].filter((group) => group.voices.length > 0);
+}
+
+function voiceDetail(voice: VoiceInfo): string {
+  if (voice.description) return voice.description;
+  if (voice.engineId === "server") return t("voiceLocalServer", "Local server");
+  return voice.supportsWordTimings
+    ? t("wordEvents", "word events")
+    : t("systemVoice", "System voice");
+}
+
+function auditionLabel(voice: VoiceInfo, status: AuditionStatus | null): string {
+  if (status?.voiceId === voice.id && status.progress !== null) {
+    return t("auditionDownloading", `Downloading ${Math.round(status.progress * 100)}%`, [
+      String(Math.round(status.progress * 100)),
+    ]);
+  }
+  if (voice.engineId === "system" || status?.state === "playing") {
+    return t("auditionPlaying", "Playing");
+  }
+  return t("auditionPreparing", "Preparing...");
+}
+
+interface ModelRowProps {
+  title: string;
+  details: string[];
+  phase: "checking" | "missing" | "downloading" | "preparing" | "ready" | "error";
+  // Shown in the badge for a ready model: "Ready", "Loaded" or "Downloaded".
+  readyLabel?: string;
+  loaded?: number;
+  total?: number;
+  error?: string;
+  onDownload(): void;
+  onRemove(): void;
+}
+
+function ModelRow(props: ModelRowProps) {
+  const { phase } = props;
+  const percentage =
+    props.total && props.total > 0
+      ? Math.min(100, Math.floor(((props.loaded ?? 0) / props.total) * 100))
+      : 0;
+  const badge =
+    phase === "ready"
+      ? props.readyLabel ?? t("modelReady", "Ready")
+      : phase === "downloading"
+        ? `${percentage}%`
+        : phase === "preparing"
+          ? t("modelPreparing", "Preparing")
+          : phase === "error"
+            ? t("error", "Error")
+            : phase === "checking"
+              ? t("modelChecking", "Checking")
+              : t("modelNotDownloaded", "Not downloaded");
+  const busy = phase === "downloading" || phase === "preparing";
+  return (
+    <article className="model-row">
+      <div className="model-row__copy">
+        <div className="model-row__title">
+          <strong>{props.title}</strong>
+          <span
+            className={`model-state model-state--${busy ? "downloading" : phase}`}
+          >
+            {badge}
+          </span>
+        </div>
+        {props.details.map((detail) => (
+          <p key={detail}>{detail}</p>
+        ))}
+        {props.error && <p className="model-error">{props.error}</p>}
+        {phase === "downloading" && (
+          <progress max={props.total} value={props.loaded} />
+        )}
+      </div>
+      <button
+        type="button"
+        className={phase === "ready" ? "button-quiet" : undefined}
+        disabled={busy || phase === "checking"}
+        onClick={phase === "ready" ? props.onRemove : props.onDownload}
+      >
+        {phase === "downloading"
+          ? t("downloading", "Downloading...")
+          : phase === "preparing"
+            ? t("preparing", "Preparing...")
+            : phase === "ready"
+              ? t("remove", "Remove")
+              : phase === "error"
+                ? t("retry", "Retry")
+                : t("download", "Download")}
+      </button>
+    </article>
+  );
+}
+
+function serverModelTitle(model: ServerModel): string {
+  if (model.kind === "aligner") return t("alignerModel", "Word timing aligner");
+  return model.name;
+}
+
+function serverModelPhase(model: ServerModel): ModelRowProps["phase"] {
+  if (model.state === "loaded" || model.state === "downloaded") return "ready";
+  if (model.state === "downloading") return "downloading";
+  if (model.state === "loading") return "preparing";
+  return model.state;
+}
+
+function ServerStatus(props: {
+  state: ServerState | null;
+  action: "start" | "stop" | null;
+  voiceCount: number;
+  onStart(): void;
+  onStop(): void;
+}) {
+  const { state, action } = props;
+  let tone: "off" | "on" | "warn" = "off";
+  let title: string;
+  let detail: string;
+  if (action) {
+    title =
+      action === "start"
+        ? t("serverStarting", "Starting the server...")
+        : t("serverStopping", "Stopping the server...");
+    detail = t("serverWait", "This can take a few seconds.");
+  } else if (!state) {
+    title = t("serverChecking", "Checking the local server...");
+    detail = "";
+  } else if (state.running) {
+    title = state.version
+      ? t("serverRunningVersion", `Running · version ${state.version}`, [
+          state.version,
+        ])
+      : t("serverRunning", "Running");
+    if (state.connected) {
+      tone = "on";
+      detail = t("serverConnected", `Connected · ${props.voiceCount} voices`, [
+        String(props.voiceCount),
+      ]);
+    } else {
+      tone = "warn";
+      detail = !state.enabled
+        ? t("serverOffSetting", "Turn on “Use the local server” to use its voices.")
+        : state.helper
+          ? t(
+              "serverConnectFailed",
+              "The extension could not connect. Run the installer again.",
+            )
+          : t("serverNeedsPairing", "Pair it with a code below to use its voices.");
+    }
+    if (state.version && serverUpdateAvailable(state.version)) {
+      detail = `${detail} ${t(
+        "serverUpdate",
+        "Server update available. Run the latest installer to update.",
+      )}`;
+    }
+  } else if (state.helper) {
+    title = t("serverStopped", "Stopped");
+    detail = state.canManage
+      ? t(
+          "serverStoppedDetail",
+          "Start it to use server voices. It stays off until you start it.",
+        )
+      : t(
+          "serverServiceMissing",
+          "The server service is missing. Run the installer again.",
+        );
+  } else {
+    title = t("serverNotFound", "Not installed");
+    detail = t(
+      "serverNotFoundDetail",
+      "Run ./server/install.sh from the Open Speechy folder, then come back to this page.",
+    );
+  }
+  if (state?.error && !action) detail = state.error;
+
+  return (
+    <div className="server-status" data-tone={tone} aria-live="polite">
+      <span className="server-light" aria-hidden="true" />
+      <div className="server-status__text">
+        <strong>{title}</strong>
+        {detail && <p>{detail}</p>}
+      </div>
+      {state?.helper && state.canManage && (
+        <div className="server-status__actions">
+          {state.running ? (
+            <button
+              type="button"
+              className="button-quiet"
+              disabled={action !== null}
+              onClick={props.onStop}
+            >
+              {t("stopServer", "Stop")}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={action !== null}
+              onClick={props.onStart}
+            >
+              {t("startServer", "Start")}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OptionsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [voices, setVoices] = useState<VoiceInfo[]>([]);
   const [notice, setNotice] = useState("");
+  const [modelNotice, setModelNotice] = useState("");
   const [auditioning, setAuditioning] = useState<string | null>(null);
+  const [auditionLang, setAuditionLang] = useState<Lang>("en");
+  const [showAllSystemVoices, setShowAllSystemVoices] = useState(false);
   const [serverUrl, setServerUrl] = useState(DEFAULT_SETTINGS.server.url);
   const [pairCode, setPairCode] = useState("");
   const [serverBusy, setServerBusy] = useState(false);
-  const [serverOutdated, setServerOutdated] = useState(false);
+  const [serverState, setServerState] = useState<ServerState | null>(null);
+  const [serverAction, setServerAction] = useState<"start" | "stop" | null>(
+    null,
+  );
   const [modelStates, setModelStates] = useState<Record<string, ModelViewState>>(
     {},
   );
+  const [auditionStatus, setAuditionStatus] = useState<AuditionStatus | null>(
+    null,
+  );
+  // Null until known, or when the server is too old to list its models.
+  const [serverModels, setServerModels] = useState<ServerModel[] | null>(null);
 
   async function refreshModels(): Promise<void> {
     const states = await Promise.all(
@@ -94,7 +383,7 @@ function OptionsPage() {
         }));
       });
       await refreshModels();
-      setNotice(t("modelVerified", "Model verified and ready."));
+      setModelNotice(t("modelVerified", "Model verified and ready."));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Model download failed.";
@@ -107,7 +396,7 @@ function OptionsPage() {
           error: message,
         },
       }));
-      setNotice(message);
+      setModelNotice(message);
     }
   }
 
@@ -121,7 +410,49 @@ function OptionsPage() {
         : [modelId];
     await Promise.all(modelIds.map((id) => modelManager.remove(id)));
     await refreshModels();
-    setNotice("Model files removed from this device.");
+    setModelNotice(t("modelRemoved", "Model files removed from this device."));
+  }
+
+  async function refreshServerModels(): Promise<void> {
+    const response = (await chrome.runtime.sendMessage({
+      type: "server/models",
+    } satisfies RuntimeMessage)) as ServerModelsResponse;
+    if (!response.ok) throw new Error(response.error);
+    setServerModels(response.models ?? null);
+  }
+
+  async function manageServerModel(
+    model: ServerModel,
+    action: "prepare" | "remove",
+  ): Promise<void> {
+    try {
+      const response = (await chrome.runtime.sendMessage({
+        type: action === "prepare" ? "server/model-prepare" : "server/model-remove",
+        modelId: model.id,
+      } satisfies RuntimeMessage)) as ServerModelsResponse;
+      if (!response.ok) {
+        throw new Error(
+          response.error ?? t("serverModelFailure", "The server could not do that."),
+        );
+      }
+      setServerModels(response.models ?? null);
+      if (action === "remove") {
+        setModelNotice(
+          t("serverModelRemoved", `${serverModelTitle(model)} removed.`, [
+            serverModelTitle(model),
+            formatBytes(response.freedBytes ?? 0),
+          ]),
+        );
+        // Removing a voice model changes which voices are ready to play.
+        void refreshVoices().catch(() => {});
+      }
+    } catch (error) {
+      setModelNotice(
+        error instanceof Error
+          ? error.message
+          : t("serverModelFailure", "The server could not do that."),
+      );
+    }
   }
 
   useEffect(() => {
@@ -135,9 +466,6 @@ function OptionsPage() {
       .then(([loaded, response]) => {
         setSettings(loaded);
         setServerUrl(loaded.server.url);
-        if (loaded.server.token) {
-          void checkServerVersion(loaded.server.url, loaded.server.token);
-        }
         if (response.ok && response.voices) setVoices(response.voices);
         else setNotice(response.error ?? t("voiceDiscoveryFailed", "Voice discovery failed."));
         void refreshModels();
@@ -149,6 +477,32 @@ function OptionsPage() {
             : t("settingsLoadFailure", "Settings could not load."),
         );
       });
+    // The installer may run while this page is open, and the service worker
+    // saves the token when it connects on its own.
+    const onFocus = () => void refreshServerState();
+    onFocus();
+    const onStorage = (_changes: unknown, area: string) => {
+      if (area === "local" || area === "sync") {
+        void settingsStore.load().then(setSettings);
+      }
+    };
+    const onMessage = (value: unknown) => {
+      const message = value as RuntimeMessage;
+      if (message?.type !== "voice/audition-status") return;
+      setAuditionStatus((current) => ({
+        voiceId: message.voiceId,
+        progress: message.progress ?? null,
+        state: message.state ?? current?.state ?? null,
+      }));
+    };
+    window.addEventListener("focus", onFocus);
+    chrome.storage.onChanged.addListener(onStorage);
+    chrome.runtime.onMessage.addListener(onMessage);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      chrome.storage.onChanged.removeListener(onStorage);
+      chrome.runtime.onMessage.removeListener(onMessage);
+    };
   }, []);
 
   async function selectVoice(lang: Lang, voiceId: string): Promise<void> {
@@ -159,9 +513,8 @@ function OptionsPage() {
 
   async function audition(voice: VoiceInfo): Promise<void> {
     setAuditioning(voice.id);
-    setNotice(
-      `${t("playingSample", "Playing...")} ${voice.name}`,
-    );
+    setAuditionStatus(null);
+    setNotice("");
     try {
       const response = (await chrome.runtime.sendMessage({
         type: "voice/audition",
@@ -172,6 +525,13 @@ function OptionsPage() {
           ? t("sampleFinished", "$1 sample finished.", [voice.name])
           : response.error ?? t("auditionFailure", "Voice audition failed."),
       );
+      if (response.ok && !voice.installed) {
+        const refreshed = (await chrome.runtime.sendMessage({
+          type: "voices/list",
+        })) as VoiceListResponse;
+        if (refreshed.ok && refreshed.voices) setVoices(refreshed.voices);
+        void refreshModels();
+      }
     } catch (error) {
       setNotice(
         error instanceof Error
@@ -180,6 +540,8 @@ function OptionsPage() {
       );
     } finally {
       setAuditioning(null);
+      setAuditionStatus(null);
+      if (voice.engineId === "server") void refreshServerModels().catch(() => {});
     }
   }
 
@@ -205,8 +567,7 @@ function OptionsPage() {
       });
       setSettings(updated);
       setPairCode("");
-      void checkServerVersion(url, result.token);
-      await refreshVoices();
+      await refreshServerState();
       setNotice(t("serverPaired", "Paired on this device."));
     } catch (error) {
       setNotice(
@@ -219,23 +580,81 @@ function OptionsPage() {
     }
   }
 
-  async function checkServerVersion(
-    url: string,
-    token: string,
-  ): Promise<void> {
+  async function refreshServerState(): Promise<void> {
     try {
-      const response = await fetch(`${normalizeServerUrl(url)}/health`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const health = (await response.json()) as { version?: string };
-      setServerOutdated(
-        typeof health.version === "string" &&
-          serverUpdateAvailable(health.version),
+      const response = (await chrome.runtime.sendMessage({
+        type: "server/state",
+      })) as ServerStateResponse;
+      if (!response.ok || !response.state) {
+        throw new Error(
+          response.error ??
+            t("serverStateFailure", "Could not check the local server."),
+        );
+      }
+      setServerState(response.state);
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : t("serverStateFailure", "Could not check the local server."),
       );
-    } catch {
-      setServerOutdated(false);
     }
   }
+
+  async function controlServer(action: "start" | "stop"): Promise<void> {
+    setServerAction(action);
+    try {
+      const response = (await chrome.runtime.sendMessage({
+        type: action === "start" ? "server/start" : "server/stop",
+      })) as ServerStateResponse;
+      if (!response.ok || !response.state) {
+        throw new Error(
+          response.error ??
+            t("serverStateFailure", "Could not check the local server."),
+        );
+      }
+      setServerState(response.state);
+      if (action === "start" && !response.state.running) {
+        setNotice(
+          t(
+            "serverStartSlow",
+            "The server has not answered yet. It may still be starting.",
+          ),
+        );
+      }
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : t("serverStateFailure", "Could not check the local server."),
+      );
+    } finally {
+      setServerAction(null);
+    }
+  }
+
+  // Server voices and models come and go with the connection.
+  const serverConnected = serverState?.connected ?? null;
+  useEffect(() => {
+    if (serverConnected === null) return;
+    void refreshVoices().catch(() => {});
+    if (serverConnected) void refreshServerModels().catch(() => {});
+    else setServerModels(null);
+  }, [serverConnected]);
+
+  // Follow a server download until it finishes.
+  const serverModelBusy = Boolean(
+    serverModels?.some(
+      (model) => model.state === "downloading" || model.state === "loading",
+    ),
+  );
+  useEffect(() => {
+    if (!serverModelBusy) return;
+    const timer = setInterval(() => {
+      void refreshServerModels().catch(() => {});
+    }, 1_000);
+    return () => clearInterval(timer);
+  }, [serverModelBusy]);
 
   async function refreshVoices(): Promise<void> {
     const response = (await chrome.runtime.sendMessage({
@@ -253,15 +672,6 @@ function OptionsPage() {
     const updated = await settingsStore.update(patch);
     setSettings(updated);
       setNotice(t("preferencesSaved", "Preferences saved."));
-  }
-
-  async function disconnectServer(): Promise<void> {
-    const updated = await settingsStore.update({
-      server: { token: "", enabled: false },
-    });
-    setSettings(updated);
-    setVoices((current) => current.filter((voice) => voice.engineId !== "server"));
-    setNotice(t("serverDisconnected", "Local server disconnected."));
   }
 
   return (
@@ -320,9 +730,9 @@ function OptionsPage() {
                   .filter((voice) => voice.lang === lang)
                   .map((voice) => (
                     <option value={voice.id} key={voice.id}>
-                      {voice.name} / {voice.quality}
+                      {voice.name} · {voiceDetail(voice)}
                       {!voice.installed
-                        ? ` / ${t("modelNotInstalled", "model not installed")}`
+                        ? ` · ${t("modelNotInstalled", "downloads on first use")}`
                         : ""}
                     </option>
                   ))}
@@ -352,59 +762,127 @@ function OptionsPage() {
             <p>
               {t(
                 "auditionHelp",
-                "Each available voice reads the same short sample.",
+                "Play a short sample of any voice. On-device voices download the first time you play them.",
               )}
             </p>
           </div>
         </div>
 
-        <div className="voice-list">
-          {voices.map((voice) => (
-            <article className="voice-row" key={voice.id}>
-              <div>
-                <div className="voice-row__title">
-                  <strong>{voice.name}</strong>
-                  <span className={`badge badge--${voice.quality}`}>
-                    {voice.quality}
-                  </span>
-                </div>
-                <p>
-                  {voice.lang === "en"
-                    ? t("languageEnglish", "English")
-                    : t("languageArabic", "Arabic")} ·{" "}
-                  {voice.engineId === "system"
-                    ? voice.local
-                      ? t("systemVoice", "System voice")
-                      : t("remoteSystemVoice", "Remote system voice")
-                    : voice.engineId === "server"
-                      ? t("voiceLocalServer", "Local server")
-                      : t("voiceOnDevice", "On-device model")}
-                  {voice.supportsWordTimings
-                    ? ` · ${t("wordEvents", "word events")}`
-                    : ""}
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={
-                  auditioning !== null ||
-                  voice.engineId === "server" ||
-                  (voice.engineId !== "system" && !voice.installed)
-                }
-                onClick={() => void audition(voice)}
-              >
-                {auditioning === voice.id
-                  ? t("playingSample", "Playing...")
-                  : t("playSample", "Play sample")}
-              </button>
-            </article>
+        <div
+          className="segmented"
+          role="tablist"
+          aria-label={t("auditionLanguage", "Voice language")}
+        >
+          {(["en", "ar"] as const).map((lang) => (
+            <button
+              key={lang}
+              type="button"
+              role="tab"
+              aria-selected={auditionLang === lang}
+              onClick={() => setAuditionLang(lang)}
+            >
+              {lang === "en"
+                ? t("languageEnglish", "English")
+                : t("languageArabic", "Arabic")}
+              <span className="segmented__count">
+                {voices.filter((voice) => voice.lang === lang).length}
+              </span>
+            </button>
           ))}
-          {voices.length === 0 && (
-            <p className="empty-state">
-              {t("noVoices", "No voices were reported by Chrome.")}
-            </p>
-          )}
         </div>
+
+        {auditionGroups(voices, auditionLang).map((group) => {
+          const limited =
+            group.id === "system" && !showAllSystemVoices
+              ? group.voices.slice(0, SYSTEM_VOICE_PREVIEW)
+              : group.voices;
+          return (
+            <div className="voice-group" key={group.id}>
+              <div className="voice-group__heading">
+                <h3>{group.title}</h3>
+                <span>{group.hint}</span>
+              </div>
+              <div className="voice-grid">
+                {limited.map((voice) => {
+                  const active = auditioning === voice.id;
+                  const progress =
+                    active && auditionStatus?.voiceId === voice.id
+                      ? auditionStatus.progress
+                      : null;
+                  return (
+                  <article
+                    className="voice-card"
+                    key={voice.id}
+                    data-active={active}
+                  >
+                    <div className="voice-card__copy">
+                      <div className="voice-card__title">
+                        <strong>{voice.name}</strong>
+                        {voice.quality !== "standard" && (
+                          <span className={`badge badge--${voice.quality}`}>
+                            {voice.quality}
+                          </span>
+                        )}
+                      </div>
+                      <p aria-live={active ? "polite" : undefined}>
+                        {active
+                          ? auditionLabel(voice, auditionStatus)
+                          : voiceDetail(voice)}
+                      </p>
+                    </div>
+                    {progress !== null && (
+                      <span
+                        className="voice-card__progress"
+                        style={{ width: `${progress * 100}%` }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      className="voice-card__play"
+                      aria-label={`${t("playSample", "Play sample")}: ${voice.name}`}
+                      title={
+                        voice.engineId !== "system" && !voice.installed
+                          ? t("downloadAndPlay", "Download and play sample") +
+                            (voice.sizeBytes
+                              ? ` (${formatBytes(voice.sizeBytes)})`
+                              : "")
+                          : t("playSample", "Play sample")
+                      }
+                      disabled={auditioning !== null}
+                      data-playing={auditioning === voice.id}
+                      onClick={() => void audition(voice)}
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
+                      </svg>
+                    </button>
+                  </article>
+                  );
+                })}
+              </div>
+              {group.id === "system" &&
+                group.voices.length > SYSTEM_VOICE_PREVIEW && (
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => setShowAllSystemVoices((value) => !value)}
+                  >
+                    {showAllSystemVoices
+                      ? t("showFewerVoices", "Show fewer")
+                      : t("showAllVoices", "Show all $1", [
+                          String(group.voices.length),
+                        ])}
+                  </button>
+                )}
+            </div>
+          );
+        })}
+        {voices.length === 0 && (
+          <p className="empty-state">
+            {t("noVoices", "No voices were reported by Chrome.")}
+          </p>
+        )}
         <p className="notice" role="status" aria-live="polite">
           {notice}
         </p>
@@ -429,7 +907,7 @@ function OptionsPage() {
         <div className="server-panel">
           <label className="setting-row setting-row--compact">
             <span>
-              <strong>{t("serverUse", "Use the local server when paired")}</strong>
+              <strong>{t("serverUse", "Use the local server")}</strong>
               <small>
                 {t(
                   "serverUseHelp",
@@ -440,97 +918,76 @@ function OptionsPage() {
             <input
               type="checkbox"
               checked={settings.server.enabled}
-              onChange={(event) =>
-                void saveSettings({
-                  server: { enabled: event.currentTarget.checked },
-                })
-              }
+              onChange={(event) => {
+                const enabled = event.currentTarget.checked;
+                void saveSettings({ server: { enabled } }).then(() =>
+                  refreshServerState(),
+                );
+              }}
             />
           </label>
-          <div className="server-panel__state">
-            <span
-              className={
-                settings.server.token
-                  ? "server-light server-light--on"
-                  : "server-light"
-              }
-              aria-hidden="true"
-            />
-            <div>
-              <strong>
-                {settings.server.token
-                  ? t("pairedDevice", "Paired on this device")
-                  : t("notPaired", "Not paired")}
-              </strong>
-              <p>
-                {serverOutdated
-                  ? t(
-                      "serverUpdate",
-                      "Server update available. Run the latest installer to update.",
-                    )
-                  : settings.server.token
-                  ? t("tokenLocal", "The token is held in local extension storage.")
-                  : t(
-                      "pairCodeHelp",
-                      "Open the local pairing page, then enter its one-time code.",
-                    )}
+
+          <ServerStatus
+            state={serverState}
+            action={serverAction}
+            voiceCount={
+              voices.filter((voice) => voice.engineId === "server").length
+            }
+            onStart={() => void controlServer("start")}
+            onStop={() => void controlServer("stop")}
+          />
+
+          {serverState && !serverState.helper && (
+            <details className="server-manual" open={serverState.running}>
+              <summary>{t("pairManually", "Pair with a code")}</summary>
+              <p className="server-footnote">
+                {t(
+                  "pairCodeHelp",
+                  "Open the local pairing page, then enter its one-time code.",
+                )}
               </p>
-            </div>
-          </div>
-
-          <label className="server-field">
-            <span>{t("serverAddress", "Server address")}</span>
-            <input
-              value={serverUrl}
-              spellCheck={false}
-              onChange={(event) => setServerUrl(event.currentTarget.value)}
-            />
-          </label>
-
-          <div className="pair-row">
-            <a
-              href="http://127.0.0.1:5123/pair"
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t("openPairing", "Open pairing page")}
-            </a>
-            <label className="server-field">
-              <span>{t("oneTimeCode", "One-time code")}</span>
-              <input
-                inputMode="numeric"
-                maxLength={6}
-                value={pairCode}
-                onChange={(event) => setPairCode(event.currentTarget.value)}
-              />
-            </label>
-            <button
-              type="button"
-              disabled={serverBusy || pairCode.trim().length !== 6}
-              onClick={() => void pairServer()}
-            >
-              {serverBusy
-                ? t("connecting", "Connecting...")
-                : t("pairServer", "Pair server")}
-            </button>
-          </div>
-
-          {settings.server.token && (
-            <div className="server-panel__footer">
-              <span>
-                {voices.some((voice) => voice.engineId === "server")
-                  ? t("serverVoicesReady", "Server voices are ready.")
-                  : t("serverNoVoices", "Paired, but no server voice is available.")}
-              </span>
-              <button type="button" onClick={() => void disconnectServer()}>
-                {t("disconnect", "Disconnect")}
-              </button>
-            </div>
+              <label className="server-field">
+                <span>{t("serverAddress", "Server address")}</span>
+                <input
+                  value={serverUrl}
+                  spellCheck={false}
+                  onChange={(event) => setServerUrl(event.currentTarget.value)}
+                />
+              </label>
+              <div className="pair-row">
+                <a
+                  href="http://127.0.0.1:5123/pair"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t("openPairing", "Open pairing page")}
+                </a>
+                <label className="server-field">
+                  <span>{t("oneTimeCode", "One-time code")}</span>
+                  <input
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={pairCode}
+                    onChange={(event) => setPairCode(event.currentTarget.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={serverBusy || pairCode.trim().length !== 6}
+                  onClick={() => void pairServer()}
+                >
+                  {serverBusy
+                    ? t("connecting", "Connecting...")
+                    : t("pairServer", "Pair server")}
+                </button>
+              </div>
+            </details>
           )}
+
           <p className="server-footnote">
             {t(
               "serverFootnote",
-              "The server only accepts extension requests from its paired browser. Models download from pinned revisions on first use.",
+              "The server listens only on 127.0.0.1 and answers this extension. Models download from pinned revisions on first use.",
             )}
           </p>
         </div>
@@ -732,12 +1189,13 @@ function OptionsPage() {
             <span>{t("wordHighlightColor", "Word highlight color")}</span>
             <input
               type="color"
-              value={colorToHex(settings.highlight.word, "#ffb300")}
+              value={colorToHex(
+                settings.highlight.word,
+                DEFAULT_SETTINGS.highlight.word,
+              )}
               onChange={(event) =>
                 void saveSettings({
-                  highlight: {
-                    word: hexToRgba(event.currentTarget.value, 0.6),
-                  },
+                  highlight: { word: event.currentTarget.value },
                 })
               }
             />
@@ -748,12 +1206,13 @@ function OptionsPage() {
             </span>
             <input
               type="color"
-              value={colorToHex(settings.highlight.sentence, "#ffd54f")}
+              value={colorToHex(
+                settings.highlight.sentence,
+                DEFAULT_SETTINGS.highlight.sentence,
+              )}
               onChange={(event) =>
                 void saveSettings({
-                  highlight: {
-                    sentence: hexToRgba(event.currentTarget.value, 0.25),
-                  },
+                  highlight: { sentence: event.currentTarget.value },
                 })
               }
             />
@@ -771,10 +1230,19 @@ function OptionsPage() {
             <p>
               {t(
                 "modelsHelp",
-                "Weights stay in local Cache Storage and are checked before use.",
+                "Remove a model to free space. It downloads again the next time a voice needs it.",
               )}
             </p>
           </div>
+        </div>
+        <div className="voice-group__heading">
+          <h3>{t("modelsBrowserHeading", "In this browser")}</h3>
+          <span>
+            {t(
+              "modelsBrowserHint",
+              "Stored in this browser and checked before use.",
+            )}
+          </span>
         </div>
         <div className="model-list">
           {MODEL_CATALOG.map((model) => {
@@ -789,64 +1257,89 @@ function OptionsPage() {
                 : model.id === "piper-ar-kareem-medium"
                   ? t("piperModel", "Piper Kareem, Arabic")
                   : t("diacritizerModel", "libtashkeel Arabic diacritizer");
-            const ready = state.phase === "ready";
-            const downloading = state.phase === "downloading";
-            const percentage =
-              state.total > 0
-                ? Math.min(100, Math.round((state.loaded / state.total) * 100))
-                : 0;
             return (
-              <article className="model-row" key={model.id}>
-                <div className="model-row__copy">
-                  <div className="model-row__title">
-                    <strong>{title}</strong>
-                    <span className={`model-state model-state--${state.phase}`}>
-                      {ready
-                        ? t("modelReady", "Ready")
-                        : downloading
-                          ? `${percentage}%`
-                          : state.phase === "error"
-                            ? t("error", "Error")
-                            : t("modelNotDownloaded", "Not downloaded")}
-                    </span>
-                  </div>
-                  <p>
-                    {formatBytes(model.bytes)} · {model.license}
-                  </p>
-                  {model.id === "kokoro-en-q8" && (
-                    <p>
-                      {t(
-                        "kokoroVoiceEmbeddings",
-                        "Voice embeddings download when a voice is first used.",
-                      )}
-                    </p>
-                  )}
-                  {state.error && <p className="model-error">{state.error}</p>}
-                  {downloading && (
-                    <progress max={state.total} value={state.loaded} />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  disabled={downloading || state.phase === "checking"}
-                  onClick={() =>
-                    void (ready
-                      ? deleteModel(model.id)
-                      : downloadModel(model.id))
-                  }
-                >
-                  {downloading
-                    ? t("downloading", "Downloading...")
-                    : ready
-                      ? t("delete", "Delete")
-                      : state.phase === "error"
-                        ? t("retry", "Retry")
-                        : t("download", "Download")}
-                </button>
-              </article>
+              <ModelRow
+                key={model.id}
+                title={title}
+                details={[
+                  `${formatBytes(model.bytes)} · ${model.license}`,
+                  ...(model.id === "kokoro-en-q8"
+                    ? [
+                        t(
+                          "kokoroVoiceEmbeddings",
+                          "Voice embeddings download when a voice is first used.",
+                        ),
+                      ]
+                    : []),
+                ]}
+                phase={state.phase === "idle" ? "missing" : state.phase}
+                loaded={state.loaded}
+                total={state.total}
+                error={state.error}
+                onDownload={() => void downloadModel(model.id)}
+                onRemove={() => void deleteModel(model.id)}
+              />
             );
           })}
         </div>
+
+        {serverModels && serverModels.length > 0 && (
+          <>
+            <div className="voice-group__heading model-group">
+              <h3>{t("modelsServerHeading", "On the local server")}</h3>
+              <span>
+                {t(
+                  "modelsServerHint",
+                  "Downloaded by the companion server when a voice is first used.",
+                )}
+              </span>
+            </div>
+            <div className="model-list">
+              {serverModels.map((model) => (
+                <ModelRow
+                  key={model.id}
+                  title={serverModelTitle(model)}
+                  details={[
+                    model.kind === "aligner"
+                      ? `${formatBytes(model.bytes)} · ${t(
+                          "alignerModelHelp",
+                          "Optional. Exact word highlights for SILMA and Chatterbox; Kokoro times its words without it.",
+                        )}`
+                      : `${formatBytes(model.bytes)} · ${model.langs
+                          .map((lang) =>
+                            lang === "en"
+                              ? t("languageEnglish", "English")
+                              : t("languageArabic", "Arabic"),
+                          )
+                          .join(", ")}`,
+                  ]}
+                  phase={serverModelPhase(model)}
+                  readyLabel={
+                    model.state === "loaded"
+                      ? t("modelLoaded", "Loaded")
+                      : t("modelDownloaded", "Downloaded")
+                  }
+                  loaded={model.progress?.downloaded}
+                  total={model.progress?.total}
+                  error={model.error}
+                  onDownload={() => void manageServerModel(model, "prepare")}
+                  onRemove={() => void manageServerModel(model, "remove")}
+                />
+              ))}
+            </div>
+          </>
+        )}
+        {serverState?.connected && serverModels === null && (
+          <p className="server-footnote">
+            {t(
+              "serverModelsUpdate",
+              "Run the latest server installer to manage server models here.",
+            )}
+          </p>
+        )}
+        <p className="notice" role="status" aria-live="polite">
+          {modelNotice}
+        </p>
       </section>
 
       <footer className="footer">
@@ -875,15 +1368,4 @@ function colorToHex(value: string, fallback: string): string {
         .padStart(2, "0"),
     )
     .join("")}`;
-}
-
-function hexToRgba(value: string, alpha: number): string {
-  const channels = value
-    .replace("#", "")
-    .match(/.{2}/gu)
-    ?.map((channel) => Number.parseInt(channel, 16));
-  if (!channels || channels.length !== 3 || channels.some(Number.isNaN)) {
-    return DEFAULT_SETTINGS.highlight.word;
-  }
-  return `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, ${alpha})`;
 }

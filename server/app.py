@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import os
 import re
 import uuid
@@ -14,13 +15,14 @@ from pydantic import BaseModel, Field, field_validator
 
 from .auth import AuthManager, PairingManager
 from .engines.base import EngineUnavailable, Synthesis
-from .engines.registry import EngineRegistry
+from .engines.registry import EngineRegistry, ModelBusy
 from .synthesis_queue import DuplicateRequestError, SynthesisQueue
 
 HOST = "127.0.0.1"
 PORT = 5123
-VERSION = os.environ.get("OPEN_SPEECHY_VERSION", "0.1.0")
+VERSION = os.environ.get("OPEN_SPEECHY_VERSION", "0.2.0")
 REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+MODEL_ID = re.compile(r"^[a-z0-9_]{1,64}$")
 
 
 class PairRequest(BaseModel):
@@ -56,7 +58,6 @@ def create_app(
     pairing_manager = pairing or PairingManager(auth_manager)
     registry = engines or EngineRegistry()
     queue = jobs or SynthesisQueue()
-    extension_origin = auth_manager.extension_origin
 
     app = FastAPI(
         title="Open Speechy Local Server",
@@ -64,12 +65,11 @@ def create_app(
         docs_url=None,
         redoc_url=None,
     )
+    # Pairing can rebind the server to another extension ID while it runs, so
+    # CORS admits any extension origin. require_auth checks the bound one.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[extension_origin] if extension_origin else [],
-        allow_origin_regex=(
-            None if extension_origin else r"^chrome-extension://[a-p]{32}$"
-        ),
+        allow_origin_regex=r"^chrome-extension://[a-p]{32}$",
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-Id"],
         max_age=600,
@@ -101,10 +101,11 @@ def create_app(
         return response
 
     def require_extension_origin(request: Request) -> None:
-        if (
-            auth_manager.extension_origin is None
-            or request.headers.get("origin") != auth_manager.extension_origin
-        ):
+        # Chrome omits Origin on GET requests from an extension with host
+        # permission for this server, so only a present Origin is checked. Web
+        # pages always send one, and every route also needs the bearer token.
+        origin = request.headers.get("origin")
+        if origin is not None and origin != auth_manager.extension_origin:
             raise HTTPException(status_code=403, detail="Extension origin required.")
 
     def require_auth(request: Request) -> None:
@@ -112,12 +113,18 @@ def create_app(
         if not auth_manager.accepts(request.headers.get("authorization")):
             raise HTTPException(status_code=401, detail="Bearer token required.")
 
+    # Unauthenticated, so the native host and the extension can tell this
+    # server apart from another app on the port before they are connected.
+    @app.get("/ping")
+    async def ping():
+        return {"app": "open-speechy", "version": version}
+
     @app.get("/health")
     async def health(_: None = Depends(require_auth)):
         return {
             "ok": True,
             "version": version,
-            "device": detect_device(),
+            "device": await asyncio.to_thread(detect_device),
             "engines": registry.health(),
         }
 
@@ -135,6 +142,52 @@ def create_app(
         except EngineUnavailable as error:
             raise HTTPException(status_code=503, detail=str(error)) from error
         return Response(status_code=204)
+
+    def require_model_id(model_id: str) -> None:
+        if not MODEL_ID.fullmatch(model_id):
+            raise HTTPException(status_code=400, detail="Invalid model ID.")
+
+    @app.get("/models")
+    async def models(_: None = Depends(require_auth)):
+        # Sizes can need a network check for a model never downloaded.
+        return {"models": await asyncio.to_thread(registry.models)}
+
+    @app.post("/models/{model_id}/prepare", status_code=202)
+    async def prepare_model(
+        model_id: str,
+        _: None = Depends(require_auth),
+    ) -> Response:
+        require_model_id(model_id)
+        try:
+            registry.start_prepare(model_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Unknown model.") from error
+        except EngineUnavailable as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
+        return Response(status_code=202)
+
+    @app.delete("/models/{model_id}")
+    async def remove_model(
+        model_id: str,
+        _: None = Depends(require_auth),
+    ):
+        require_model_id(model_id)
+
+        async def run_removal() -> int:
+            return await registry.remove(model_id)
+
+        try:
+            if registry.preparing(model_id):
+                raise ModelBusy("Wait until the model finishes preparing.")
+            # Runs after any synthesis in progress on the same engine.
+            freed = await queue.run(model_id, f"remove-{uuid.uuid4().hex}", run_removal)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Unknown model.") from error
+        except ModelBusy as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except EngineUnavailable as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
+        return {"freedBytes": freed}
 
     @app.post("/synthesize")
     async def synthesize(
@@ -191,7 +244,11 @@ def create_app(
         return Response(status_code=204)
 
     @app.get("/pair", response_class=HTMLResponse)
-    async def pair_page():
+    async def pair_page(request: Request):
+        # Show the code to a person opening the page, not to a script fetching it.
+        fetch_mode = request.headers.get("sec-fetch-mode")
+        if fetch_mode is not None and fetch_mode != "navigate":
+            raise HTTPException(status_code=403, detail="Open this page in a tab.")
         code = pairing_manager.current_code()
         return f"""<!doctype html>
 <html lang="en">
@@ -224,6 +281,9 @@ def create_app(
     return app
 
 
+# Importing torch takes seconds on a cold start. It runs once, off the event
+# loop, so a health check right after startup does not stall other requests.
+@functools.cache
 def detect_device() -> str:
     try:
         import torch
