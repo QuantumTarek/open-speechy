@@ -11,12 +11,14 @@ import {
   kokoroVoiceName,
 } from "./voice-catalog";
 import { packagedUrl } from "./packaged-url";
+import { splitWordsForSynthesis } from "./text-chunks";
 import { estimateWordTimings } from "./timings";
 import type {
   SynthesisRequest,
   SynthesisResult,
   TtsEngine,
   VoiceInfo,
+  WordTiming,
 } from "./types";
 
 const MODEL_ID = "kokoro-en-q8";
@@ -81,27 +83,48 @@ export class KokoroEngine implements TtsEngine {
       throw signal.reason ?? new DOMException("Aborted", "AbortError");
     const voice = request.voiceId.split(":").at(-1) ?? "af_heart";
     await this.#ensureVoice(voice, signal);
-    const result = await this.#tts!.generate(request.text, {
-      voice: voice as (typeof KOKORO_VOICES)[number],
-      speed: request.speed,
-    });
-    if (signal.aborted)
-      throw signal.reason ?? new DOMException("Aborted", "AbortError");
-
-    return {
-      audio: result.audio,
-      sampleRate: result.sampling_rate,
-      timings: estimateWordTimings(
-        request.words.map((text, index) => ({
-          wordIndex: request.wordIndices[index] ?? index,
+    // Longer text is read in parts and joined; kokoro-js would cut it short.
+    const parts: Float32Array[] = [];
+    const timings: WordTiming[] = [];
+    let sampleRate = 24_000;
+    let offsetMs = 0;
+    for (const [start, end] of splitWordsForSynthesis(request.words)) {
+      const words = request.words.slice(start, end);
+      const result = await this.#tts!.generate(words.join(" "), {
+        voice: voice as (typeof KOKORO_VOICES)[number],
+        speed: request.speed,
+      });
+      if (signal.aborted)
+        throw signal.reason ?? new DOMException("Aborted", "AbortError");
+      sampleRate = result.sampling_rate;
+      for (const timing of estimateWordTimings(
+        words.map((text, index) => ({
+          wordIndex: request.wordIndices[start + index] ?? start + index,
           text,
         })),
         result.audio,
-        result.sampling_rate,
+        sampleRate,
         request.lang,
-      ),
-      timingSource: "estimated",
-    };
+      )) {
+        timings.push({
+          ...timing,
+          startMs: timing.startMs + offsetMs,
+          endMs: timing.endMs + offsetMs,
+        });
+      }
+      parts.push(result.audio);
+      offsetMs += (result.audio.length / sampleRate) * 1_000;
+    }
+    const audio = new Float32Array(
+      parts.reduce((total, part) => total + part.length, 0),
+    );
+    let position = 0;
+    for (const part of parts) {
+      audio.set(part, position);
+      position += part.length;
+    }
+
+    return { audio, sampleRate, timings, timingSource: "estimated" };
   }
 
   async dispose(): Promise<void> {

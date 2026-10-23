@@ -14,6 +14,20 @@ const EN_SPECIAL_TOKENS =
 const AR_SPECIAL_TOKENS =
   /(?:[$€£]\s?-?[\d٠-٩۰-۹][\d٠-٩۰-۹,٬]*(?:[.٫][\d٠-٩۰-۹]+)?[%٪]?|-?[\d٠-٩۰-۹][\d٠-٩۰-۹,٬]*(?:[.٫][\d٠-٩۰-۹]+)?[%٪]?)/giu;
 
+// Periods that do not end a sentence. Titles always; months and "No." only
+// before a number.
+const ABBREVIATION_PERIOD =
+  /\b(?:Dr|Mr|Mrs|Ms|Prof|Sr|Jr|St|Mt|Ft|Gen|Col|Lt|Sgt|Capt|Gov|Sen|Rep|Rev|Hon|vs)\.|\b(?:No|Nos|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.(?=\s*\d)/gu;
+const ABBREVIATION_WORD =
+  /^(?:dr|mr|mrs|ms|prof|sr|jr|st|mt|ft|gen|col|lt|sgt|capt|gov|sen|rep|rev|hon|vs|e\.g|i\.e|etc)\.$/iu;
+const NUMBER_ABBREVIATION_WORD =
+  /^(?:no|nos|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\.$/iu;
+// Punctuation passed on to the voice, which uses it for pauses and intonation.
+const SPOKEN_PUNCTUATION = /[,.;:!?…—،؛؟]/gu;
+// Line breaks other than a blank line. Page markup and pasted text wrap lines
+// inside sentences, and the segmenter would end a sentence at each one.
+const LINE_BREAK = /[\n\r\v\f\u0085\u2028\u2029]/gu;
+
 function segmenter(
   locale: string,
   granularity: "sentence" | "word",
@@ -21,6 +35,8 @@ function segmenter(
   return new Intl.Segmenter(locale, { granularity });
 }
 
+// Long sentences are read in clauses, so the first audio is not held up and
+// each part stays within what the in-browser voices take at once.
 function splitLongSentence(sentence: SegmentLike): SegmentLike[] {
   if (sentence.segment.length <= 300) return [sentence];
   const chunks: SegmentLike[] = [];
@@ -91,9 +107,13 @@ function sentenceWordSegments(text: string, lang: Lang): SegmentLike[] {
 }
 
 function sentenceSegments(text: string, lang: Lang): SegmentLike[] {
+  // Every replacement keeps the length, so offsets still match the text.
   const masked = text
+    .replace(/\s+/gu, (space) =>
+      /\n[^\S\n]*\n/u.test(space) ? space : space.replace(LINE_BREAK, " "),
+    )
     .replace(
-      /\b(?:Dr|Mr|Mrs|Ms)\./giu,
+      ABBREVIATION_PERIOD,
       (match) => `${match.slice(0, -1)}\uE000`,
     )
     .replace(/\b(?:e\.g|i\.e|etc)\./giu, (match) =>
@@ -156,14 +176,26 @@ export function segmentBlocks(
           const display = `${word.segment}${punctuation}`;
           const wordStart = sourceStart + word.index;
           const wordEnd = wordStart + word.segment.length;
-          const abbreviation = /^(?:dr|mr|mrs|ms)\.$/iu.test(display);
+          const abbreviation =
+            ABBREVIATION_WORD.test(display) ||
+            (NUMBER_ABBREVIATION_WORD.test(display) &&
+              /^\d/u.test(nextWord?.segment ?? ""));
+          const spoken =
+            runLang === "en"
+              ? normalizeEnglishWord(
+                  /^(?:dr|mr|mrs|ms)\.$/iu.test(display) ? display : word.segment,
+                )
+              : normalizeArabicWord(word.segment);
+          const pause = abbreviation
+            ? ""
+            : (punctuation.match(SPOKEN_PUNCTUATION) ?? []).join("");
           return {
             index: wordIndex++,
             display,
             spoken:
-              runLang === "en"
-                ? normalizeEnglishWord(abbreviation ? display : word.segment)
-                : normalizeArabicWord(word.segment),
+              pause && spoken.length > 0
+                ? [...spoken.slice(0, -1), `${spoken.at(-1)}${pause}`]
+                : spoken,
             pieces: trimPieceRanges(block.pieces, wordStart, wordEnd),
           };
         });

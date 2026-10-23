@@ -565,5 +565,20 @@
   },
   "serverModelsUpdate": {
     "message": "Run the latest server installer to manage server models here."
+  },
+  "auditionGender": {
+    "message": "Voice gender"
+  },
+  "genderAll": {
+    "message": "All"
+  },
+  "genderFemale": {
+    "message": "Female"
+  },
+  "genderMale": {
+    "message": "Male"
+  },
+  "noFilteredVoices": {
+    "message": "No voices match this filter."
   }
 }

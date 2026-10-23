@@ -128,9 +128,9 @@ describe("Arabic normalization", () => {
 
     expect(spoken).toContain("ألفان");
     expect(spoken).toContain("وأربعة");
-    expect(spoken).toContain("بالمئة");
+    expect(spoken).toContain("بالمئة.");
     expect(spoken).toContain("دولار");
-    expect(spoken).toContain("سنت");
+    expect(spoken).toContain("سنت.");
   });
 });
 

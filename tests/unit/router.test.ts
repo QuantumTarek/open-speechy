@@ -5,6 +5,7 @@ import {
   browserVoiceCatalog,
   kokoroVoiceDescription,
   kokoroVoiceName,
+  voiceGender,
 } from "../../src/engines/voice-catalog";
 import type { VoiceInfo } from "../../src/engines/types";
 
@@ -212,5 +213,28 @@ describe("voice selection", () => {
       (candidate) => candidate.id === "kokoro:af_heart",
     );
     expect(heart).toMatchObject({ name: "Heart", description: "American · female" });
+  });
+});
+
+describe("voice gender", () => {
+  const voice = (id: string, engineId: VoiceInfo["engineId"], name: string): VoiceInfo => ({
+    id,
+    engineId,
+    lang: "en",
+    name,
+    quality: "standard",
+    local: true,
+    supportsWordTimings: false,
+    installed: true,
+  });
+
+  it("reads Kokoro IDs, Kareem and known Apple voices, and leaves the rest unknown", () => {
+    expect(voiceGender(voice("kokoro:af_heart", "kokoro", "Heart"))).toBe("female");
+    expect(voiceGender(voice("server:kokoro:bm_george", "server", "George"))).toBe("male");
+    expect(voiceGender(voice("piper:ar_JO-kareem-medium", "piper", "Kareem"))).toBe("male");
+    expect(voiceGender(voice("system:en-US:Evan (Enhanced)", "system", "Evan (Enhanced)"))).toBe("male");
+    expect(voiceGender(voice("system:en-US:Ava (Premium)", "system", "Ava (Premium)"))).toBe("female");
+    expect(voiceGender(voice("server:silma:default", "server", "SILMA Arabic"))).toBeUndefined();
+    expect(voiceGender(voice("system:en-US:Unknown (Enhanced)", "system", "Unknown (Enhanced)"))).toBeUndefined();
   });
 });

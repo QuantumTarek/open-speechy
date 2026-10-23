@@ -167,3 +167,8 @@ yet.
 - Store screenshots live in `store/screenshots` (regenerate with
   `node tools/store-screenshots.mjs` after a production build).
 - Privacy policy for the store listing: [docs/privacy-policy.md](docs/privacy-policy.md).
+
+## License
+
+GPL-3.0-or-later, because the bundled eSpeak-NG phonemizer is GPL-3.0. See
+[LICENSE](LICENSE) and [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

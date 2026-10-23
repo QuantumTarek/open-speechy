@@ -75,3 +75,58 @@ export function browserVoiceCatalog(): VoiceInfo[] {
     },
   ];
 }
+
+export type VoiceGender = "female" | "male";
+
+// Apple's natural (Premium and Enhanced) voices. Chrome does not report a
+// voice's gender, so system voices not listed here have none.
+const SYSTEM_VOICE_GENDERS: Record<string, VoiceGender> = {
+  Allison: "female",
+  Ava: "female",
+  Catherine: "female",
+  Fiona: "female",
+  Isha: "female",
+  Joelle: "female",
+  Karen: "female",
+  Kate: "female",
+  Laila: "female",
+  Mariam: "female",
+  Martha: "female",
+  Matilda: "female",
+  Moira: "female",
+  Nicky: "female",
+  Noelle: "female",
+  Samantha: "female",
+  Serena: "female",
+  Stephanie: "female",
+  Susan: "female",
+  Tessa: "female",
+  Veena: "female",
+  Zoe: "female",
+  Aaron: "male",
+  Alex: "male",
+  Arthur: "male",
+  Daniel: "male",
+  Evan: "male",
+  Gordon: "male",
+  Jamie: "male",
+  Lee: "male",
+  Maged: "male",
+  Majed: "male",
+  Nathan: "male",
+  Oliver: "male",
+  Rishi: "male",
+  Tarik: "male",
+  Tom: "male",
+};
+
+/** The voice's gender when it is known: Kokoro IDs encode it ("af_", "am_"). */
+export function voiceGender(voice: VoiceInfo): VoiceGender | undefined {
+  const kokoro = voice.id.match(/^(?:server:)?kokoro:[a-z]([fm])_/u);
+  if (kokoro) return kokoro[1] === "f" ? "female" : "male";
+  if (voice.id === "piper:ar_JO-kareem-medium") return "male";
+  if (voice.engineId === "system") {
+    return SYSTEM_VOICE_GENDERS[voice.name.replace(/\s*\(.*$/u, "")];
+  }
+  return undefined;
+}

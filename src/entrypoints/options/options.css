@@ -195,10 +195,16 @@ button:focus-visible {
   line-height: 1.6;
 }
 
+.audition-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
 .segmented {
   display: inline-flex;
   gap: 4px;
-  margin-bottom: 22px;
   padding: 4px;
   border: 1px solid rgba(30, 53, 54, 0.12);
   border-radius: 10px;
@@ -219,7 +225,8 @@ button:focus-visible {
   font-weight: 600;
 }
 
-.segmented button[aria-selected="true"] {
+.segmented button[aria-selected="true"],
+.segmented button[aria-pressed="true"] {
   background: #fffdf7;
   box-shadow: 0 1px 3px rgba(30, 53, 54, 0.14);
   color: #183638;
@@ -334,10 +341,10 @@ button:focus-visible {
   cursor: pointer;
 }
 
+/* The triangle sits half a pixel right of center, which reads as centered. */
 .voice-card__play svg {
   width: 14px;
   height: 14px;
-  margin-left: 2px;
   fill: currentColor;
 }
 

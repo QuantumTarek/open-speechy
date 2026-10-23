@@ -172,6 +172,56 @@ describe("English number normalization", () => {
 });
 
 describe("sentence and word segmentation", () => {
+  it("reads a sentence whole across line breaks in the page source", () => {
+    const sentences = segmentBlocks(
+      [
+        blockFromText(
+          "The keeper woke before dawn,\n    as he had for thirty years.\n\nA new paragraph",
+        ),
+      ],
+      () => "en",
+    );
+
+    expect(sentences.map((sentence) => sentence.text)).toEqual([
+      "The keeper woke before dawn, as he had for thirty years.",
+      "A new paragraph",
+    ]);
+  });
+
+  it("does not end a sentence at a title or a numbered abbreviation", () => {
+    const sentences = segmentBlocks(
+      [
+        blockFromText(
+          "Prof. Lee lives in St. Louis. See No. 5 vs. Smith on Jan. 5. He said no. Done.",
+        ),
+      ],
+      () => "en",
+    );
+
+    expect(sentences.map((sentence) => sentence.text)).toEqual([
+      "Prof. Lee lives in St. Louis.",
+      "See No. 5 vs. Smith on Jan. 5.",
+      "He said no.",
+      "Done.",
+    ]);
+  });
+
+  it("passes punctuation to the voice, but not an abbreviation's period", () => {
+    const [sentence] = segmentBlocks(
+      [blockFromText("Well, Prof. Lee — is it done?")],
+      () => "en",
+    );
+
+    expect(sentence.words.map((word) => word.spoken.join(" "))).toEqual([
+      "Well,",
+      "Prof",
+      "Lee—",
+      "is",
+      "it",
+      "done?",
+    ]);
+  });
+
   it("keeps abbreviations and decimals together and attaches punctuation", () => {
     const sentences = segmentBlocks(
       [blockFromText("Dr. Smith paid $1,234.50. The rate was 3.14%.")],
@@ -194,14 +244,14 @@ describe("sentence and word segmentation", () => {
       "dollars",
       "and",
       "fifty",
-      "cents",
+      "cents.",
     ]);
     expect(sentences[1].words[3].spoken).toEqual([
       "three",
       "point",
       "one",
       "four",
-      "percent",
+      "percent.",
     ]);
     expect(sentences[0].words[1].display).toBe("Smith");
   });

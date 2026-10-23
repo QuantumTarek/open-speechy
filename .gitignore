@@ -21,3 +21,13 @@ __pycache__/
 *.wav
 *.mp3
 .claude/settings.local.json
+.DS_Store
+# Model weights and keys never belong in the repository.
+*.bin
+*.pt
+*.pth
+*.safetensors
+*.gguf
+*.ckpt
+*.pem
+*.crx

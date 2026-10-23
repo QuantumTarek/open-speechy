@@ -13,6 +13,7 @@ import {
   type ServerModel,
 } from "../../engines/server";
 import type { ServerState } from "../../engines/server-connection";
+import { voiceGender, type VoiceGender } from "../../engines/voice-catalog";
 import { MODEL_CATALOG, MODEL_DESCRIPTORS } from "../../models/catalog";
 import { ModelManager, type ModelProgress } from "../../models/manager";
 import type { RuntimeMessage } from "../../messaging/protocol";
@@ -65,8 +66,17 @@ const QUALITY_RANK: Record<VoiceInfo["quality"], number> = {
   compact: 3,
 };
 
-function auditionGroups(voices: VoiceInfo[], lang: Lang) {
-  const forLang = voices.filter((voice) => voice.lang === lang);
+type GenderFilter = "all" | VoiceGender;
+
+// Voices whose gender is unknown are listed only under "All".
+function matchesGender(voice: VoiceInfo, filter: GenderFilter): boolean {
+  return filter === "all" || voiceGender(voice) === filter;
+}
+
+function auditionGroups(voices: VoiceInfo[], lang: Lang, gender: GenderFilter) {
+  const forLang = voices.filter(
+    (voice) => voice.lang === lang && matchesGender(voice, gender),
+  );
   return [
     {
       id: "local",
@@ -317,6 +327,7 @@ function OptionsPage() {
   const [modelNotice, setModelNotice] = useState("");
   const [auditioning, setAuditioning] = useState<string | null>(null);
   const [auditionLang, setAuditionLang] = useState<Lang>("en");
+  const [genderFilter, setGenderFilter] = useState<GenderFilter>("all");
   const [showAllSystemVoices, setShowAllSystemVoices] = useState(false);
   const [serverUrl, setServerUrl] = useState(DEFAULT_SETTINGS.server.url);
   const [pairCode, setPairCode] = useState("");
@@ -768,30 +779,59 @@ function OptionsPage() {
           </div>
         </div>
 
-        <div
-          className="segmented"
-          role="tablist"
-          aria-label={t("auditionLanguage", "Voice language")}
-        >
-          {(["en", "ar"] as const).map((lang) => (
-            <button
-              key={lang}
-              type="button"
-              role="tab"
-              aria-selected={auditionLang === lang}
-              onClick={() => setAuditionLang(lang)}
-            >
-              {lang === "en"
-                ? t("languageEnglish", "English")
-                : t("languageArabic", "Arabic")}
-              <span className="segmented__count">
-                {voices.filter((voice) => voice.lang === lang).length}
-              </span>
-            </button>
-          ))}
+        <div className="audition-filters">
+          <div
+            className="segmented"
+            role="tablist"
+            aria-label={t("auditionLanguage", "Voice language")}
+          >
+            {(["en", "ar"] as const).map((lang) => (
+              <button
+                key={lang}
+                type="button"
+                role="tab"
+                aria-selected={auditionLang === lang}
+                onClick={() => setAuditionLang(lang)}
+              >
+                {lang === "en"
+                  ? t("languageEnglish", "English")
+                  : t("languageArabic", "Arabic")}
+                <span className="segmented__count">
+                  {
+                    voices.filter(
+                      (voice) =>
+                        voice.lang === lang && matchesGender(voice, genderFilter),
+                    ).length
+                  }
+                </span>
+              </button>
+            ))}
+          </div>
+          <div
+            className="segmented"
+            role="group"
+            aria-label={t("auditionGender", "Voice gender")}
+          >
+            {(
+              [
+                ["all", t("genderAll", "All")],
+                ["female", t("genderFemale", "Female")],
+                ["male", t("genderMale", "Male")],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={genderFilter === value}
+                onClick={() => setGenderFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {auditionGroups(voices, auditionLang).map((group) => {
+        {auditionGroups(voices, auditionLang, genderFilter).map((group) => {
           const limited =
             group.id === "system" && !showAllSystemVoices
               ? group.voices.slice(0, SYSTEM_VOICE_PREVIEW)
@@ -810,54 +850,54 @@ function OptionsPage() {
                       ? auditionStatus.progress
                       : null;
                   return (
-                  <article
-                    className="voice-card"
-                    key={voice.id}
-                    data-active={active}
-                  >
-                    <div className="voice-card__copy">
-                      <div className="voice-card__title">
-                        <strong>{voice.name}</strong>
-                        {voice.quality !== "standard" && (
-                          <span className={`badge badge--${voice.quality}`}>
-                            {voice.quality}
-                          </span>
-                        )}
-                      </div>
-                      <p aria-live={active ? "polite" : undefined}>
-                        {active
-                          ? auditionLabel(voice, auditionStatus)
-                          : voiceDetail(voice)}
-                      </p>
-                    </div>
-                    {progress !== null && (
-                      <span
-                        className="voice-card__progress"
-                        style={{ width: `${progress * 100}%` }}
-                        aria-hidden="true"
-                      />
-                    )}
-                    <button
-                      type="button"
-                      className="voice-card__play"
-                      aria-label={`${t("playSample", "Play sample")}: ${voice.name}`}
-                      title={
-                        voice.engineId !== "system" && !voice.installed
-                          ? t("downloadAndPlay", "Download and play sample") +
-                            (voice.sizeBytes
-                              ? ` (${formatBytes(voice.sizeBytes)})`
-                              : "")
-                          : t("playSample", "Play sample")
-                      }
-                      disabled={auditioning !== null}
-                      data-playing={auditioning === voice.id}
-                      onClick={() => void audition(voice)}
+                    <article
+                      className="voice-card"
+                      key={voice.id}
+                      data-active={active}
                     >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
-                      </svg>
-                    </button>
-                  </article>
+                      <div className="voice-card__copy">
+                        <div className="voice-card__title">
+                          <strong>{voice.name}</strong>
+                          {voice.quality !== "standard" && (
+                            <span className={`badge badge--${voice.quality}`}>
+                              {voice.quality}
+                            </span>
+                          )}
+                        </div>
+                        <p aria-live={active ? "polite" : undefined}>
+                          {active
+                            ? auditionLabel(voice, auditionStatus)
+                            : voiceDetail(voice)}
+                        </p>
+                      </div>
+                      {progress !== null && (
+                        <span
+                          className="voice-card__progress"
+                          style={{ width: `${progress * 100}%` }}
+                          aria-hidden="true"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        className="voice-card__play"
+                        aria-label={`${t("playSample", "Play sample")}: ${voice.name}`}
+                        title={
+                          voice.engineId !== "system" && !voice.installed
+                            ? t("downloadAndPlay", "Download and play sample") +
+                              (voice.sizeBytes
+                                ? ` (${formatBytes(voice.sizeBytes)})`
+                                : "")
+                            : t("playSample", "Play sample")
+                        }
+                        disabled={auditioning !== null}
+                        data-playing={auditioning === voice.id}
+                        onClick={() => void audition(voice)}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M7 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L8.5 4.64A1 1 0 0 0 7 5.5z" />
+                        </svg>
+                      </button>
+                    </article>
                   );
                 })}
               </div>
@@ -878,10 +918,16 @@ function OptionsPage() {
             </div>
           );
         })}
-        {voices.length === 0 && (
+        {voices.length === 0 ? (
           <p className="empty-state">
             {t("noVoices", "No voices were reported by Chrome.")}
           </p>
+        ) : (
+          auditionGroups(voices, auditionLang, genderFilter).length === 0 && (
+            <p className="empty-state">
+              {t("noFilteredVoices", "No voices match this filter.")}
+            </p>
+          )
         )}
         <p className="notice" role="status" aria-live="polite">
           {notice}

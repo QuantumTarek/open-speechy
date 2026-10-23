@@ -565,5 +565,20 @@
   },
   "serverModelsUpdate": {
     "message": "شغّل أحدث مثبّت للخادم لإدارة نماذجه من هنا."
+  },
+  "auditionGender": {
+    "message": "جنس الصوت"
+  },
+  "genderAll": {
+    "message": "الكل"
+  },
+  "genderFemale": {
+    "message": "نسائية"
+  },
+  "genderMale": {
+    "message": "رجالية"
+  },
+  "noFilteredVoices": {
+    "message": "لا توجد أصوات تطابق هذا الاختيار."
   }
 }
