@@ -540,7 +540,7 @@ Each milestone ends with: passing unit + e2e tests, an updated README, and a sho
   - the DOM is unchanged.
 - Use a **`FakeEngine`** (enabled in test builds) that returns silent audio with deterministic timings, so CI doesn't need models. One separate, opt-in "real models" e2e job runs with the real Kokoro and Piper models.
 
-### 13.3 Manual QA checklist (in `docs/qa.md`)
+### 13.3 Manual QA checklist
 EN article, AR article, mixed page, very long article (> 10k words), SPA that re-renders, infinite-scroll page, page with iframes (read the top document only), dark-mode site, selection across paragraphs, PDF EN/AR/local, Google Doc EN/AR, offline after models are cached, browser restart mid-session, two tabs (starting the second stops the first), every keyboard shortcut, speed extremes 0.5×/3×, Apple Premium voice present/absent.
 
 ---

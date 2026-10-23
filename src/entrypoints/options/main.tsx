@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Play } from "lucide-react";
 import { createRoot } from "react-dom/client";
 import type { Lang, VoiceInfo } from "../../engines/types";
 import {
@@ -893,9 +894,7 @@ function OptionsPage() {
                         data-playing={auditioning === voice.id}
                         onClick={() => void audition(voice)}
                       >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M7 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L8.5 4.64A1 1 0 0 0 7 5.5z" />
-                        </svg>
+                        <Play fill="currentColor" aria-hidden="true" />
                       </button>
                     </article>
                   );

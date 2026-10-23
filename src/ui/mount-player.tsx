@@ -4,14 +4,15 @@ import { PlayerBar, type PlayerBarProps } from "./PlayerBar";
 const PLAYER_CSS = `
   :host {
     all: initial;
-    --bg: rgba(255, 252, 245, 0.96);
-    --fg: #17292d;
-    --muted: #64777a;
-    --line: rgba(23, 41, 45, 0.12);
-    --hover: rgba(23, 41, 45, 0.07);
-    --accent: #c0632f;
-    --solid: #17292d;
-    --on-solid: #fffaf0;
+    /* The palette of the extension icon. */
+    --bg: rgba(255, 255, 255, 0.96);
+    --fg: #1b1e4b;
+    --muted: #5f6491;
+    --line: rgba(27, 30, 75, 0.12);
+    --hover: rgba(53, 64, 184, 0.08);
+    --accent: #5666f0;
+    --solid: #3540b8;
+    --on-solid: #ffffff;
     --danger: #b3261e;
     color-scheme: light;
     direction: ltr;
@@ -26,14 +27,14 @@ const PLAYER_CSS = `
   }
   @media (prefers-color-scheme: dark) {
     :host {
-      --bg: rgba(28, 34, 36, 0.96);
-      --fg: #eef2ef;
-      --muted: #9cabaa;
+      --bg: rgba(24, 26, 56, 0.96);
+      --fg: #eceeff;
+      --muted: #a3a8d6;
       --line: rgba(255, 255, 255, 0.12);
       --hover: rgba(255, 255, 255, 0.08);
-      --accent: #f0a46b;
-      --solid: #eef2ef;
-      --on-solid: #17292d;
+      --accent: #abb3fe;
+      --solid: #abb3fe;
+      --on-solid: #1b1e4b;
       --danger: #ff8a80;
       color-scheme: dark;
     }
@@ -44,11 +45,11 @@ const PLAYER_CSS = `
     border: 1px solid var(--line);
     border-radius: 14px;
     background: var(--bg);
-    box-shadow: 0 10px 30px rgba(8, 24, 28, 0.18), 0 1px 3px rgba(8, 24, 28, 0.12);
+    box-shadow: 0 10px 30px rgba(14, 16, 52, 0.18), 0 1px 3px rgba(14, 16, 52, 0.12);
     backdrop-filter: blur(14px) saturate(1.4);
     outline: none;
   }
-  .player:focus-visible { box-shadow: 0 0 0 3px var(--accent), 0 10px 30px rgba(8, 24, 28, 0.18); }
+  .player:focus-visible { box-shadow: 0 0 0 3px var(--accent), 0 10px 30px rgba(14, 16, 52, 0.18); }
   .player__bar {
     display: flex;
     align-items: center;
@@ -75,8 +76,7 @@ const PLAYER_CSS = `
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
-  svg { width: 16px; height: 16px; fill: currentColor; }
-  svg.icon--stroke { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  svg { width: 16px; height: 16px; }
   .player .player__play {
     width: 34px;
     height: 34px;

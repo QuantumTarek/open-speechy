@@ -11,8 +11,8 @@ body {
     "Noto Naskh Arabic",
     "Geeza Pro",
     sans-serif;
-  background: #3c4043;
-  color: #1c2529;
+  background: #2c2f52;
+  color: #1b1e4b;
 }
 
 #pdf-toolbar {
@@ -24,8 +24,8 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 8px 16px;
-  background: #23262b;
-  color: #e8eaed;
+  background: #1d2050;
+  color: #eceeff;
   font-size: 13px;
 }
 
@@ -75,7 +75,7 @@ body {
   margin-top: 20vh;
   max-width: 520px;
   text-align: center;
-  color: #e8eaed;
+  color: #eceeff;
 }
 
 .pdf-empty__hint {

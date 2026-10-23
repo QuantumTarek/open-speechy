@@ -1,3 +1,4 @@
+import { ArrowUpRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { setDocumentLanguage, t } from "../../i18n";
@@ -120,7 +121,7 @@ function PopupPage() {
         onClick={() => void chrome.runtime.openOptionsPage()}
       >
         {t("voicesAndSettings", "Voices and settings")}{" "}
-        <span aria-hidden="true">↗</span>
+        <ArrowUpRight size={14} aria-hidden="true" />
       </button>
       <p className="popup__notice" role="status" aria-live="polite">
         {notice}

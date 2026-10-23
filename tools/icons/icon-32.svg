@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Drawn on the 32 px grid: the toolbar size on high-density screens. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6b78f5"/>
+      <stop offset="1" stop-color="#3540b8"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7.5" fill="url(#bg)"/>
+  <rect x="3" y="13" width="3" height="6" rx="1.5" fill="#e0e3ff"/>
+  <rect x="8" y="9" width="3" height="14" rx="1.5" fill="#e0e3ff"/>
+  <rect x="14" y="5" width="4" height="22" rx="2.0" fill="#ffffff"/>
+  <rect x="21" y="9" width="3" height="14" rx="1.5" fill="#e0e3ff"/>
+  <rect x="26" y="13" width="3" height="6" rx="1.5" fill="#e0e3ff"/>
+</svg>

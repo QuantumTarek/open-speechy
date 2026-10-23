@@ -1,6 +1,14 @@
 :root {
-  color: #1e3536;
-  background: #e9e5d9;
+  /* The palette of the extension icon, as on the options page. */
+  --ink: #1b1e4b;
+  --muted: #6c7199;
+  --brand: #3540b8;
+  --brand-strong: #2b349a;
+  --accent: #5666f0;
+  --line-strong: #c4c9ea;
+  --danger: #b42318;
+  color: var(--ink);
+  background: #eceefa;
   font-family: "Avenir Next", "Trebuchet MS", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -15,8 +23,8 @@ body {
   min-height: 300px;
   margin: 0;
   background:
-    radial-gradient(ellipse at 95% 3%, rgba(201, 128, 76, 0.22), transparent 12rem),
-    linear-gradient(150deg, #f0ecdf 0%, #dce7df 100%);
+    radial-gradient(ellipse at 95% 3%, rgba(107, 120, 245, 0.24), transparent 12rem),
+    linear-gradient(150deg, #f3f4fc 0%, #e5e8f8 100%);
 }
 
 button {
@@ -39,9 +47,9 @@ button {
   width: 42px;
   height: 42px;
   place-items: center;
-  border: 1px solid rgba(30, 53, 54, 0.3);
+  border: 1px solid rgba(43, 50, 140, 0.3);
   border-radius: 50%;
-  color: #b15f3d;
+  color: var(--accent);
   font-family: Georgia, serif;
   font-size: 14px;
   transform: rotate(-7deg);
@@ -49,7 +57,7 @@ button {
 
 .popup__eyebrow {
   margin: 0 0 4px;
-  color: #a85e3d;
+  color: var(--accent);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.16em;
@@ -57,7 +65,7 @@ button {
 
 h1 {
   margin: 0;
-  color: #193638;
+  color: var(--ink);
   font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   font-size: 25px;
   font-weight: 500;
@@ -75,28 +83,28 @@ h1 {
 }
 
 .popup__primary {
-  border: 1px solid #193638;
-  background: #193638;
-  color: #fffaf0;
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: #ffffff;
 }
 
 .popup__primary:hover:not(:disabled) {
-  background: #2b5354;
+  background: var(--brand-strong);
 }
 
 .popup__secondary {
   margin-top: 9px;
-  border: 1px solid #b5beb3;
-  background: rgba(255, 253, 247, 0.72);
-  color: #254a4a;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--brand);
 }
 
 .popup__secondary:hover:not(:disabled) {
-  background: #fffdf7;
+  background: #ffffff;
 }
 
 button:focus-visible {
-  outline: 3px solid #c5794e;
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -113,7 +121,7 @@ button:disabled {
   padding: 8px 1px;
   border: 0;
   background: transparent;
-  color: #8b4d35;
+  color: var(--brand);
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -122,13 +130,13 @@ button:disabled {
 .popup__notice {
   min-height: 16px;
   margin: 5px 0 0;
-  color: #8b3d34;
+  color: var(--danger);
   font-size: 11px;
   line-height: 1.4;
 }
 
 footer {
   margin-top: 12px;
-  color: #697a73;
+  color: var(--muted);
   font-size: 10px;
 }

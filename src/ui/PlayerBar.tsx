@@ -1,3 +1,4 @@
+import { Pause, Play, SkipBack, SkipForward, X } from "lucide-react";
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Lang, VoiceInfo } from "../engines/types";
 import type { SessionControlAction } from "../messaging/protocol";
@@ -106,7 +107,7 @@ export function PlayerBar(props: PlayerBarProps) {
             label={t("previousSentence", "Previous sentence")}
             onClick={() => props.onControl("previous")}
           >
-            <path d="M6 6h2v12H6zM9.5 12 18 18V6z" />
+            <SkipBack fill="currentColor" aria-hidden="true" />
           </IconButton>
           <button
             className="player__play"
@@ -115,19 +116,17 @@ export function PlayerBar(props: PlayerBarProps) {
             disabled={props.status === "error"}
             onClick={() => props.onControl("toggle")}
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              {playing ? (
-                <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" />
-              ) : (
-                <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
-              )}
-            </svg>
+            {playing ? (
+              <Pause fill="currentColor" aria-hidden="true" />
+            ) : (
+              <Play fill="currentColor" aria-hidden="true" />
+            )}
           </button>
           <IconButton
             label={t("nextSentence", "Next sentence")}
             onClick={() => props.onControl("next")}
           >
-            <path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" />
+            <SkipForward fill="currentColor" aria-hidden="true" />
           </IconButton>
         </div>
 
@@ -160,9 +159,8 @@ export function PlayerBar(props: PlayerBarProps) {
           className="player__close"
           label={t("closeReader", "Close reader")}
           onClick={props.onClose}
-          stroke
         >
-          <path d="M7 7l10 10M17 7 7 17" />
+          <X aria-hidden="true" />
         </IconButton>
       </div>
 
@@ -245,7 +243,6 @@ export function PlayerBar(props: PlayerBarProps) {
 function IconButton(props: {
   label: string;
   className?: string;
-  stroke?: boolean;
   onClick(): void;
   children: ReactNode;
 }) {
@@ -256,13 +253,7 @@ function IconButton(props: {
       aria-label={props.label}
       onClick={props.onClick}
     >
-      <svg
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-        className={props.stroke ? "icon--stroke" : undefined}
-      >
-        {props.children}
-      </svg>
+      {props.children}
     </button>
   );
 }
