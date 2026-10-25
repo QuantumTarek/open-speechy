@@ -122,14 +122,19 @@ export class SelectionChip {
     if (!selection || selection.isCollapsed || selection.toString().trim().length < 20) {
       return this.#hide();
     }
+    // Anchor at the start of the selection. Other selection tools, such as
+    // Google Translate, put their button where the mouse was released, at
+    // the end, so the two do not cover each other.
     const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) return this.#hide();
+    const rect = [...range.getClientRects()].find(
+      (box) => box.width > 0 && box.height > 0,
+    );
+    if (!rect) return this.#hide();
 
     const host = this.#ensureHost();
     const left = Math.min(
-      Math.max(EDGE, rect.left + rect.width / 2),
-      Math.max(EDGE, this.#window.innerWidth - EDGE),
+      Math.max(EDGE, rect.left),
+      Math.max(EDGE, this.#window.innerWidth - EDGE - host.offsetWidth),
     );
     // Above the selection, or below it when there is no room above.
     const above = rect.top - GAP - HEIGHT;
@@ -146,7 +151,8 @@ export class SelectionChip {
     const host = this.#document.createElement("div");
     host.setAttribute("data-open-speechy-selection-chip", "");
     host.style.cssText =
-      "all:initial;position:fixed;z-index:2147483647;transform:translateX(-50%)";
+      // One below the maximum, so another extension's popup stays on top.
+      "all:initial;position:fixed;z-index:2147483646";
     const shadow = host.attachShadow({ mode: "open" });
     const style = this.#document.createElement("style");
     style.textContent = CHIP_CSS;
