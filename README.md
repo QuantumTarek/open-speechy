@@ -79,8 +79,7 @@ The extension ID is fixed by the `key` in `wxt.config.ts`, and the server
 only answers that ID. To allow another build, such as a store build, install
 the server with `OPEN_SPEECHY_EXTENSION_IDS=<id>`.
 
-More detail: [docs/STATUS.md](docs/STATUS.md),
-[docs/privacy-policy.md](docs/privacy-policy.md),
+More detail: [docs/privacy-policy.md](docs/privacy-policy.md),
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 ## License

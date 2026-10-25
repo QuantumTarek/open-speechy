@@ -4,7 +4,7 @@
 // left-to-right on screen) and encode glyphs as Arabic presentation forms
 // (U+FB50–FDFF, U+FE70–FEFF). Reading such text aloud requires reversing the
 // run back to logical order and folding presentation forms to plain letters
-// with NFKC. See PLAN.md §8.3 and docs/spikes.md.
+// with NFKC.
 
 type PositionalForm = "isolated" | "final" | "initial" | "medial" | "other";
 

@@ -16,7 +16,7 @@ to the user's device and are not bundled in the extension archive.
 | libtashkeel ONNX weights | MIT | [HF model card](https://huggingface.co/TigreGotico/libtashkeel-diacritizer), mirrored from Musharraf Omer's MIT project |
 | Piper `ar_JO-kareem-medium` voice | Unclear | Its [model card](https://huggingface.co/rhasspy/piper-voices/tree/main/ar/ar_JO/kareem/medium) says to see the training dataset at [arabicttstrain](https://github.com/AliMokhammad/arabicttstrain), but that repository does not publish a license file. Do not redistribute this voice until its license is confirmed. |
 | Piper phonemizer WebAssembly wrapper | MIT | [@diffusionstudio/piper-wasm](https://www.npmjs.com/package/@diffusionstudio/piper-wasm); it bundles eSpeak-NG, which is GPL-3.0-or-later |
-| Piper / Kokoro phonemizer dependency | GPL-3.0-or-later | eSpeak-NG; the project license follows the bundled phonemizer requirement in `PLAN.md`. |
+| Piper / Kokoro phonemizer dependency | GPL-3.0-or-later | eSpeak-NG; it is why this project is GPL-3.0-or-later. |
 | MMS_FA runtime | BSD-3-Clause | torchaudio/PyTorch runtime. The MMS_FA checkpoint license still needs a release review. |
 
 The extension verifies SHA-256 for its Hugging Face model files before use.

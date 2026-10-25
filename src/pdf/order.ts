@@ -1,4 +1,4 @@
-// PDF reading order heuristics (PLAN.md §8.3).
+// PDF reading order heuristics.
 //
 // PDF.js yields text items in content-stream order, which is arbitrary. These
 // functions rebuild a sensible reading sequence: group items into lines,
