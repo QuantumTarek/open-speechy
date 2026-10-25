@@ -201,8 +201,8 @@ export default defineBackground(() => {
       }
 
       if (value.type === "voices/list") {
-        void listAvailableVoices()
-          .then((voices) => sendResponse({ ok: true, voices }))
+        void listVoicesWithAutomatic()
+          .then((result) => sendResponse({ ok: true, ...result }))
           .catch((error: unknown) =>
             sendResponse({
               ok: false,
@@ -784,6 +784,27 @@ async function manageServerModels(
 
 async function listAvailableVoices(): Promise<VoiceInfo[]> {
   return (await discoverVoices()).list;
+}
+
+// The voices, and the one "Automatic" picks for each language right now.
+async function listVoicesWithAutomatic(): Promise<{
+  voices: VoiceInfo[];
+  automatic: Record<Lang, string>;
+}> {
+  const discovered = await discoverVoices();
+  const automatic = (lang: Lang) =>
+    selectVoice(lang, {
+      override: "auto",
+      systemVoices: discovered.system,
+      serverVoices: discovered.serverVoices,
+      serverPaired: discovered.serverPaired,
+      serverHealthy: discovered.serverHealthy,
+      localVoices: discovered.local,
+    }).voice.id;
+  return {
+    voices: discovered.list,
+    automatic: { en: automatic("en"), ar: automatic("ar") },
+  };
 }
 
 async function auditionVoice(voiceId: string): Promise<void> {

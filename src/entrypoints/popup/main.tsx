@@ -69,9 +69,7 @@ function PopupPage() {
   return (
     <main className="popup">
       <header className="popup__header">
-        <span className="popup__mark" aria-hidden="true">
-          OS
-        </span>
+        <img className="popup__mark" src="/icon/icon.svg" alt="" />
         <div>
           <p className="popup__eyebrow">{t("optionsKicker", "OPEN SPEECHY")}</p>
           <h1>{t("popupHeadline", "Read this page.")}</h1>

@@ -155,7 +155,9 @@ test("reads mixed Arabic and English runs without changing the article", async (
 
     expect(expected.every((word) => observed.has(word))).toBe(true);
     const gaps = changeTimes.slice(1).map((time, index) => time - changeTimes[index]);
-    expect(Math.max(...gaps)).toBeLessThan(300);
+    // A language switch that stalls takes seconds. A word before a period is
+    // held a little longer for the pause, and the page is polled every 40 ms.
+    expect(Math.max(...gaps)).toBeLessThan(400);
     expect(await article.innerHTML()).toBe(before);
   } finally {
     await context?.close();
@@ -330,6 +332,53 @@ test("stops reading when its tab is reloaded or closed", async () => {
       expect(await logSince(stoppedAt)).not.toContain("session/sentence-start");
       if (leave === "reload") await page.close();
     }
+  } finally {
+    await context?.close();
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test("jumps back to the current word on a page that scrolls inside an element", async () => {
+  test.skip(!existsSync(extensionPath), "Build the test extension first.");
+
+  const userDataDir = await mkdtemp(join(tmpdir(), "open-speechy-jump-"));
+  let context: BrowserContext | null = null;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      channel: "chromium",
+      headless: true,
+      viewport: { width: 1000, height: 700 },
+      args: [
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`,
+      ],
+    });
+    const page = await context.newPage();
+    await page.goto("/scroll-container.html");
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("open-speechy-test-start")),
+    );
+    await expect
+      .poll(() => page.evaluate(getCurrentWordText), { timeout: 10_000 })
+      .not.toBe("");
+
+    const wordTop = () =>
+      page.evaluate(() => {
+        let top = Number.NaN;
+        CSS.highlights.get("os-word")?.forEach((range) => {
+          if (Number.isNaN(top)) top = (range as Range).getBoundingClientRect().top;
+        });
+        return top;
+      });
+    await page.mouse.move(500, 400);
+    await page.mouse.wheel(0, 2_000);
+    await expect.poll(wordTop).toBeLessThan(0);
+
+    const jump = page.locator("#open-speechy-player .player__jump");
+    await expect(jump).toBeVisible();
+    await jump.click();
+    await expect.poll(wordTop, { timeout: 5_000 }).toBeGreaterThanOrEqual(0);
+    expect(await wordTop()).toBeLessThan(700);
   } finally {
     await context?.close();
     await rm(userDataDir, { recursive: true, force: true });

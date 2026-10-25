@@ -160,23 +160,39 @@ const PLAYER_CSS = `
     background: var(--solid);
     color: var(--on-solid);
   }
+  .player__select { position: relative; display: block; }
+  /* Lucide's chevron-down, in the theme's muted color. */
+  .player__select::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    width: 14px;
+    height: 14px;
+    transform: translateY(-50%);
+    background: var(--muted);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+    pointer-events: none;
+  }
   .player__field select {
     width: 100%;
     height: 30px;
-    padding: 0 8px;
+    padding: 0 30px 0 10px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: transparent;
     color: var(--fg);
     font: inherit;
     font-size: 12px;
+    appearance: none;
   }
   .player__drift { color: var(--muted); font-size: 10px; text-align: end; }
   .player .player__jump {
     display: block;
     width: calc(100% - 16px);
     height: 26px;
-    margin: 0 8px 8px;
+    margin: 8px;
     border: 1px solid var(--line);
     border-radius: 8px;
     color: var(--accent);

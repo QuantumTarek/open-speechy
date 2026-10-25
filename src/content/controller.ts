@@ -63,6 +63,7 @@ export class ContentController {
       .then((settings) => {
         this.#settings = settings;
         this.#selectionChip.setEnabled(settings.selectionChip);
+        this.#selectionChip.setIconOnly(settings.selectionChipIconOnly);
         this.#highlighter?.updateOptions(this.#highlighterOptions());
       })
       .catch(() => {});
@@ -88,6 +89,7 @@ export class ContentController {
       .then((settings) => {
         this.#settings = settings;
         this.#selectionChip.setEnabled(settings.selectionChip);
+        this.#selectionChip.setIconOnly(settings.selectionChipIconOnly);
       })
       .catch(() => {});
     chrome.storage.onChanged.addListener(this.#handleStorageChange);
@@ -201,8 +203,11 @@ export class ContentController {
   }
 
   async #start(blocks: TextBlock[], source: ReadSource): Promise<void> {
-    const sentences = segmentBlocks(blocks, (block) =>
-      this.#languageForBlock(block),
+    const sentences = segmentBlocks(
+      blocks,
+      (block) => this.#languageForBlock(block),
+      0,
+      { urlPolicy: this.#settings.urls },
     );
     if (sentences.length === 0) {
       this.#error =
@@ -370,6 +375,8 @@ export class ContentController {
         readCodeBlocks: this.#settings.readCodeBlocks,
       }),
       (block) => this.#languageForBlock(block),
+      0,
+      { urlPolicy: this.#settings.urls },
     );
     this.#sentences = rebindSentencePieces(this.#sentences, refreshed);
     this.#highlighter?.setSentences(this.#sentences);

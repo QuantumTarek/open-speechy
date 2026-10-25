@@ -102,7 +102,7 @@
     "message": "تفضيل الصوت"
   },
   "autoVoiceHelp": {
-    "message": "يختار الوضع التلقائي أولًا صوت نظام محليًا من فئة Premium أو Enhanced."
+    "message": "يختار الوضع التلقائي أفضل صوت متاح لديك: صوت نظام Premium أو Enhanced أولًا، ثم الخادم المحلي، ثم صوت يعمل في هذا المتصفح."
   },
   "languageEnglish": {
     "message": "الإنجليزية"
@@ -580,5 +580,20 @@
   },
   "noFilteredVoices": {
     "message": "لا توجد أصوات تطابق هذا الاختيار."
+  },
+  "automaticUsing": {
+    "message": "الاختيار التلقائي يستخدم $1 · $2"
+  },
+  "sourceSystem": {
+    "message": "صوت النظام"
+  },
+  "sourceBrowser": {
+    "message": "في هذا المتصفح"
+  },
+  "selectionChipIconOnly": {
+    "message": "زر التحديد يعرض الأيقونة فقط"
+  },
+  "selectionChipIconOnlyHelp": {
+    "message": "إخفاء عبارة «اقرأ التحديد» بجانب الأيقونة."
   }
 }

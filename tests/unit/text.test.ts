@@ -153,13 +153,15 @@ describe("English number normalization", () => {
     expect(normalizeEnglishWord("e.g.")).toEqual(["for", "example"]);
   });
 
-  it("speaks only the domain of URLs and email addresses by default", () => {
+  it("speaks only the domain of URLs by default, and email addresses in full", () => {
     expect(normalizeEnglishWord("https://www.example.com/a?q=1")).toEqual([
       "example",
       "dot",
       "com",
     ]);
     expect(normalizeEnglishWord("reader@example.org")).toEqual([
+      "reader",
+      "at",
       "example",
       "dot",
       "org",
@@ -206,6 +208,49 @@ describe("sentence and word segmentation", () => {
     ]);
   });
 
+  it("reads dates, times, number runs, domains and email addresses", () => {
+    const spoken = (text: string) =>
+      segmentBlocks([blockFromText(text)], () => "en")
+        .flatMap((sentence) => sentence.words.map((word) => word.spoken.join(" ")))
+        .join(" ");
+
+    expect(spoken("Filed 2024-03-06 then")).toBe(
+      "Filed March sixth, twenty twenty-four then",
+    );
+    expect(spoken("Due 25/12/2024 now")).toBe(
+      "Due December twenty-fifth, twenty twenty-four now",
+    );
+    expect(spoken("At 9:30 am or 10:00 or 7:05")).toBe(
+      "At nine thirty AM or ten o'clock or seven oh five",
+    );
+    expect(spoken("Up 10-20% in 2020-2024")).toBe(
+      "Up ten to twenty percent in twenty twenty to twenty twenty-four",
+    );
+    expect(spoken("Call 555-123-4567 about COVID-19 at -5")).toBe(
+      "Call five five five, one two three, four five six seven about COVID nineteen at minus five",
+    );
+    expect(spoken("See goldapi.io and Node.js")).toBe(
+      "See goldapi dot IO and Node dot js",
+    );
+    expect(spoken("Mail a.b@site.org today")).toBe(
+      "Mail a dot b at site dot org today",
+    );
+    expect(spoken("Prof. Lee vs. the U.S. e.g. on Jan. 5")).toBe(
+      "professor Lee versus the US for example on January five",
+    );
+  });
+
+  it("follows the URL reading setting", () => {
+    const spoken = (urlPolicy: "skip" | "domain" | "full") =>
+      segmentBlocks([blockFromText("Visit www.example.com now")], () => "en", 0, {
+        urlPolicy,
+      })[0].words.flatMap((word) => word.spoken);
+
+    expect(spoken("domain")).toEqual(["Visit", "example", "dot", "com", "now"]);
+    expect(spoken("skip")).toEqual(["Visit", "now"]);
+    expect(spoken("full")).toEqual(["Visit", "www.example.com", "now"]);
+  });
+
   it("passes punctuation to the voice, but not an abbreviation's period", () => {
     const [sentence] = segmentBlocks(
       [blockFromText("Well, Prof. Lee — is it done?")],
@@ -214,7 +259,7 @@ describe("sentence and word segmentation", () => {
 
     expect(sentence.words.map((word) => word.spoken.join(" "))).toEqual([
       "Well,",
-      "Prof",
+      "professor",
       "Lee—",
       "is",
       "it",

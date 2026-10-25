@@ -102,7 +102,7 @@
     "message": "Voice preference"
   },
   "autoVoiceHelp": {
-    "message": "Auto mode picks a local Premium or Enhanced system voice first."
+    "message": "Automatic picks the best voice you have: a Premium or Enhanced system voice first, then the local server, then a voice that runs in this browser."
   },
   "languageEnglish": {
     "message": "English"
@@ -580,5 +580,20 @@
   },
   "noFilteredVoices": {
     "message": "No voices match this filter."
+  },
+  "automaticUsing": {
+    "message": "Automatic is using $1 · $2"
+  },
+  "sourceSystem": {
+    "message": "System voice"
+  },
+  "sourceBrowser": {
+    "message": "In this browser"
+  },
+  "selectionChipIconOnly": {
+    "message": "Selection button shows only the icon"
+  },
+  "selectionChipIconOnlyHelp": {
+    "message": "Hide the “Read selection” label next to the icon."
   }
 }

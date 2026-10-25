@@ -42,17 +42,12 @@ button {
   margin-bottom: 22px;
 }
 
+/* The extension icon. */
 .popup__mark {
-  display: grid;
+  flex: none;
   width: 42px;
   height: 42px;
-  place-items: center;
-  border: 1px solid rgba(43, 50, 140, 0.3);
-  border-radius: 50%;
-  color: var(--accent);
-  font-family: Georgia, serif;
-  font-size: 14px;
-  transform: rotate(-7deg);
+  filter: drop-shadow(0 4px 10px rgba(53, 64, 184, 0.25));
 }
 
 .popup__eyebrow {

@@ -2,17 +2,44 @@ import type { Lang, SentencePlan, TextPiece } from "../engines/types";
 import { mapTextOffsets, type TextBlock } from "./extract";
 import { splitMixedScriptRuns } from "./lang";
 import { normalizeArabicWord } from "./normalize-ar";
-import { normalizeEnglishWord } from "./normalize-en";
+import {
+  DOMAIN_TLDS,
+  normalizeEnglishWord,
+  type UrlSpeechPolicy,
+} from "./normalize-en";
 
 interface SegmentLike {
   segment: string;
   index: number;
 }
 
-const EN_SPECIAL_TOKENS =
-  /(?:https?:\/\/|www\.)[^\s<>]+|[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[A-Za-z]{2,}|[$€£]\s?-?\d[\d,]*(?:\.\d+)?|-?\d[\d,]*(?:\.\d+)?(?:st|nd|rd|th)?%?/giu;
-const AR_SPECIAL_TOKENS =
-  /(?:[$€£]\s?-?[\d٠-٩۰-۹][\d٠-٩۰-۹,٬]*(?:[.٫][\d٠-٩۰-۹]+)?[%٪]?|-?[\d٠-٩۰-۹][\d٠-٩۰-۹,٬]*(?:[.٫][\d٠-٩۰-۹]+)?[%٪]?)/giu;
+// Matched in this order: links, email, dates, times and number runs before
+// plain numbers, so "2024-03-06" is one date rather than three numbers. A
+// minus sign counts only when no letter or digit comes right before it.
+const EN_SPECIAL_TOKENS = new RegExp(
+  [
+    String.raw`(?:https?:\/\/|www\.)[^\s<>]+`,
+    String.raw`[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[A-Za-z]{2,}`,
+    String.raw`(?<![\p{L}\p{N}@.])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+(?:${DOMAIN_TLDS})(?![\p{L}\p{N}])(?:\/[^\s<>]*)?`,
+    String.raw`(?<![\p{N}])\d{4}[-/]\d{1,2}[-/]\d{1,2}(?![\p{N}])`,
+    String.raw`(?<![\p{N}])\d{1,2}\/\d{1,2}\/(?:\d{4}|\d{2})(?![\p{N}])`,
+    String.raw`(?<![\p{N}])\d{1,2}:\d{2}(?![\p{N}])(?:\s?[ap]\.?m\.?(?![\p{L}]))?`,
+    String.raw`(?<![\p{L}\p{N}-])\d[\d,]*(?:\.\d+)?(?:[-–]\d[\d,]*(?:\.\d+)?)+%?(?![\p{L}\p{N}])`,
+    String.raw`[$€£]\s?-?\d[\d,]*(?:\.\d+)?`,
+    String.raw`(?<![\p{L}\p{N}])-?\d[\d,]*(?:\.\d+)?(?:st|nd|rd|th)?%?`,
+  ].join("|"),
+  "giu",
+);
+const AR_DIGIT = "[\\d٠-٩۰-۹]";
+const AR_SPECIAL_TOKENS = new RegExp(
+  [
+    String.raw`(?<!${AR_DIGIT})${AR_DIGIT}{4}[-/]${AR_DIGIT}{1,2}[-/]${AR_DIGIT}{1,2}(?!${AR_DIGIT})`,
+    String.raw`(?<![\p{L}\p{N}-])${AR_DIGIT}+(?:[-–]${AR_DIGIT}+)+(?![\p{L}\p{N}])`,
+    String.raw`[$€£]\s?-?${AR_DIGIT}[\d٠-٩۰-۹,٬]*(?:[.٫]${AR_DIGIT}+)?[%٪]?`,
+    String.raw`(?<![\p{L}\p{N}])-?${AR_DIGIT}[\d٠-٩۰-۹,٬]*(?:[.٫]${AR_DIGIT}+)?[%٪]?`,
+  ].join("|"),
+  "giu",
+);
 
 // Periods that do not end a sentence. Titles always; months and "No." only
 // before a number.
@@ -20,6 +47,8 @@ const ABBREVIATION_PERIOD =
   /\b(?:Dr|Mr|Mrs|Ms|Prof|Sr|Jr|St|Mt|Ft|Gen|Col|Lt|Sgt|Capt|Gov|Sen|Rep|Rev|Hon|vs)\.|\b(?:No|Nos|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.(?=\s*\d)/gu;
 const ABBREVIATION_WORD =
   /^(?:dr|mr|mrs|ms|prof|sr|jr|st|mt|ft|gen|col|lt|sgt|capt|gov|sen|rep|rev|hon|vs|e\.g|i\.e|etc)\.$/iu;
+// Initialisms such as "U.S.": their periods are not pauses.
+const INITIALISM = /^(?:\p{L}\.){2,}$/u;
 const NUMBER_ABBREVIATION_WORD =
   /^(?:no|nos|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\.$/iu;
 // Punctuation passed on to the voice, which uses it for pauses and intonation.
@@ -141,6 +170,7 @@ export function segmentBlocks(
   blocks: TextBlock[],
   langForBlock: (block: TextBlock) => Lang,
   firstWordIndex = 0,
+  options: { urlPolicy?: UrlSpeechPolicy } = {},
 ): SentencePlan[] {
   const sentences: SentencePlan[] = [];
   let wordIndex = firstWordIndex;
@@ -178,12 +208,14 @@ export function segmentBlocks(
           const wordEnd = wordStart + word.segment.length;
           const abbreviation =
             ABBREVIATION_WORD.test(display) ||
+            INITIALISM.test(display) ||
             (NUMBER_ABBREVIATION_WORD.test(display) &&
               /^\d/u.test(nextWord?.segment ?? ""));
           const spoken =
             runLang === "en"
               ? normalizeEnglishWord(
-                  /^(?:dr|mr|mrs|ms)\.$/iu.test(display) ? display : word.segment,
+                  abbreviation ? display : word.segment,
+                  options.urlPolicy,
                 )
               : normalizeArabicWord(word.segment);
           const pause = abbreviation

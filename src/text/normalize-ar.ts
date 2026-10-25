@@ -44,6 +44,21 @@ const DIGIT_WORDS = [
   "تسعة",
 ];
 
+const MONTHS = [
+  "يناير",
+  "فبراير",
+  "مارس",
+  "أبريل",
+  "مايو",
+  "يونيو",
+  "يوليو",
+  "أغسطس",
+  "سبتمبر",
+  "أكتوبر",
+  "نوفمبر",
+  "ديسمبر",
+];
+
 function latinizeDigits(value: string): string {
   return Array.from(value, (char) => DIGIT_MAP[char] ?? char).join("");
 }
@@ -87,6 +102,30 @@ export function normalizeArabicWord(word: string): string[] {
       );
     }
     return spoken;
+  }
+
+  // "2024-03-06": day, month name, year.
+  const date = normalized.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/u);
+  const month = date ? Number(date[2]) : 0;
+  const day = date ? Number(date[3]) : 0;
+  if (date && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+    return [
+      ...speakInteger(day).split(/\s+/u),
+      MONTHS[month - 1],
+      ...speakInteger(Number(date[1])).split(/\s+/u),
+    ];
+  }
+
+  // Numbers joined by dashes: a range reads with "إلى", and longer runs or
+  // groups with leading zeros (phone numbers) read digit by digit.
+  if (/^\d[\d,.]*(?:[-–]\d[\d,.]*)+$/u.test(normalized)) {
+    const groups = normalized.split(/[-–]/u);
+    if (groups.length === 2 && groups.every((group) => !/^0\d/u.test(group))) {
+      return [...numberParts(groups[0]), "إلى", ...numberParts(groups[1])];
+    }
+    return groups.flatMap((group) =>
+      Array.from(group.replace(/\D/gu, ""), (digit) => DIGIT_WORDS[Number(digit)]),
+    );
   }
 
   const numeric = normalized.match(/^-?\d[\d,]*(?:\.\d+)?[%٪]?$/u);

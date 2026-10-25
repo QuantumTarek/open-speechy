@@ -4,6 +4,7 @@ import type { Lang, VoiceInfo } from "../engines/types";
 import type { SessionControlAction } from "../messaging/protocol";
 import type { SessionState } from "../playback/session";
 import { t } from "../i18n";
+import { formatSpeed } from "./speed";
 
 export interface PlayerBarProps {
   status: SessionState;
@@ -153,7 +154,7 @@ export function PlayerBar(props: PlayerBarProps) {
           data-testid="settings-toggle"
           onClick={() => setExpanded((value) => !value)}
         >
-          {props.speed.toFixed(props.speed % 1 === 0 ? 0 : 1)}×
+          {formatSpeed(props.speed)}
         </button>
         <IconButton
           className="player__close"
@@ -173,13 +174,13 @@ export function PlayerBar(props: PlayerBarProps) {
           <div className="player__field">
             <div className="player__label">
               <span>{t("readingSpeed", "Reading speed")}</span>
-              <span className="player__value">{props.speed.toFixed(1)}×</span>
+              <span className="player__value">{formatSpeed(props.speed)}</span>
             </div>
             <input
               type="range"
               min="0.5"
               max="3"
-              step="0.1"
+              step="0.05"
               value={props.speed}
               aria-label={t("readingSpeed", "Reading speed")}
               onChange={(event) =>
@@ -191,33 +192,35 @@ export function PlayerBar(props: PlayerBarProps) {
                 <button
                   key={preset}
                   type="button"
-                  aria-pressed={Math.abs(props.speed - preset) < 0.05}
+                  aria-pressed={Math.abs(props.speed - preset) < 0.01}
                   onClick={() => props.onSpeed(preset)}
                 >
-                  {preset}×
+                  {formatSpeed(preset)}
                 </button>
               ))}
             </div>
           </div>
           <label className="player__field">
             <span className="player__label">{t("voice", "Voice")}</span>
-            <select
-              aria-label={t("readingVoice", "Reading voice")}
-              value={props.voiceId}
-              disabled={voices.length === 0}
-              onChange={(event) => props.onVoice(event.currentTarget.value)}
-            >
-              {voices.length === 0 && <option value={props.voiceId}>…</option>}
-              {voiceGroups(voices).map(([group, groupVoices]) => (
-                <optgroup key={group} label={group}>
-                  {groupVoices.map((voice) => (
-                    <option key={voice.id} value={voice.id}>
-                      {voiceLabel(voice)}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+            <span className="player__select">
+              <select
+                aria-label={t("readingVoice", "Reading voice")}
+                value={props.voiceId}
+                disabled={voices.length === 0}
+                onChange={(event) => props.onVoice(event.currentTarget.value)}
+              >
+                {voices.length === 0 && <option value={props.voiceId}>…</option>}
+                {voiceGroups(voices).map(([group, groupVoices]) => (
+                  <optgroup key={group} label={group}>
+                    {groupVoices.map((voice) => (
+                      <option key={voice.id} value={voice.id}>
+                        {voiceLabel(voice)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </span>
           </label>
           {props.status === "playing" && (
             <span className="player__drift" aria-live="off">

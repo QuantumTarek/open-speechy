@@ -19,12 +19,15 @@ import { MODEL_CATALOG, MODEL_DESCRIPTORS } from "../../models/catalog";
 import { ModelManager, type ModelProgress } from "../../models/manager";
 import type { RuntimeMessage } from "../../messaging/protocol";
 import type { SessionState } from "../../playback/session";
+import { formatSpeed } from "../../ui/speed";
 import { setDocumentLanguage, t } from "../../i18n";
 import "./options.css";
 
 interface VoiceListResponse {
   ok?: boolean;
   voices?: VoiceInfo[];
+  // The voice "Automatic" picks for each language.
+  automatic?: Partial<Record<Lang, string>>;
   error?: string;
 }
 
@@ -115,6 +118,12 @@ function auditionGroups(voices: VoiceInfo[], lang: Lang, gender: GenderFilter) {
         ),
     },
   ].filter((group) => group.voices.length > 0);
+}
+
+function voiceSource(voice: VoiceInfo): string {
+  if (voice.engineId === "system") return t("sourceSystem", "System voice");
+  if (voice.engineId === "server") return t("voiceLocalServer", "Local server");
+  return t("sourceBrowser", "In this browser");
 }
 
 function voiceDetail(voice: VoiceInfo): string {
@@ -324,6 +333,7 @@ function ServerStatus(props: {
 function OptionsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [voices, setVoices] = useState<VoiceInfo[]>([]);
+  const [automatic, setAutomatic] = useState<Partial<Record<Lang, string>>>({});
   const [notice, setNotice] = useState("");
   const [modelNotice, setModelNotice] = useState("");
   const [auditioning, setAuditioning] = useState<string | null>(null);
@@ -478,7 +488,7 @@ function OptionsPage() {
       .then(([loaded, response]) => {
         setSettings(loaded);
         setServerUrl(loaded.server.url);
-        if (response.ok && response.voices) setVoices(response.voices);
+        if (response.ok && response.voices) applyVoiceList(response);
         else setNotice(response.error ?? t("voiceDiscoveryFailed", "Voice discovery failed."));
         void refreshModels();
       })
@@ -517,6 +527,11 @@ function OptionsPage() {
     };
   }, []);
 
+  function applyVoiceList(response: VoiceListResponse): void {
+    setVoices(response.voices ?? []);
+    setAutomatic(response.automatic ?? {});
+  }
+
   async function selectVoice(lang: Lang, voiceId: string): Promise<void> {
     const updated = await settingsStore.update({ voice: { [lang]: voiceId } });
     setSettings(updated);
@@ -541,7 +556,7 @@ function OptionsPage() {
         const refreshed = (await chrome.runtime.sendMessage({
           type: "voices/list",
         })) as VoiceListResponse;
-        if (refreshed.ok && refreshed.voices) setVoices(refreshed.voices);
+        if (refreshed.ok && refreshed.voices) applyVoiceList(refreshed);
         void refreshModels();
       }
     } catch (error) {
@@ -672,8 +687,10 @@ function OptionsPage() {
     const response = (await chrome.runtime.sendMessage({
       type: "voices/list",
     })) as VoiceListResponse;
-    if (response.ok && response.voices) setVoices(response.voices);
-    else {
+    if (response.ok && response.voices) {
+      setVoices(response.voices);
+      setAutomatic(response.automatic ?? {});
+    } else {
       throw new Error(
         response.error ?? t("refreshVoicesFailure", "Could not refresh voices."),
       );
@@ -701,9 +718,7 @@ function OptionsPage() {
             )}
           </p>
         </div>
-        <span className="seal" aria-hidden="true">
-          OS
-        </span>
+        <img className="seal" src="/icon/icon.svg" alt="" />
       </header>
 
       <section className="section" aria-labelledby="voice-heading">
@@ -716,41 +731,58 @@ function OptionsPage() {
             <p>
               {t(
                 "autoVoiceHelp",
-                "Auto mode picks a local Premium or Enhanced system voice first.",
+                "Automatic picks the best voice you have: a Premium or Enhanced system voice first, then the local server, then a voice that runs in this browser.",
               )}
             </p>
           </div>
         </div>
 
         <div className="language-grid">
-          {(["en", "ar"] as const).map((lang) => (
-            <label className="language-card" key={lang}>
-              <span className="language-card__lang">
-                {lang === "en"
-                  ? t("languageEnglish", "English")
-                  : t("languageArabic", "Arabic")}
-              </span>
-              <select
-                value={settings.voice[lang]}
-                aria-label={`${lang === "en" ? t("languageEnglish", "English") : t("languageArabic", "Arabic")} ${t("voice", "voice")}`}
-                onChange={(event) =>
-                  void selectVoice(lang, event.currentTarget.value)
-                }
-              >
-                <option value="auto">{t("automatic", "Automatic")}</option>
-                {voices
-                  .filter((voice) => voice.lang === lang)
-                  .map((voice) => (
-                    <option value={voice.id} key={voice.id}>
-                      {voice.name} · {voiceDetail(voice)}
-                      {!voice.installed
-                        ? ` · ${t("modelNotInstalled", "downloads on first use")}`
-                        : ""}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          ))}
+          {(["en", "ar"] as const).map((lang) => {
+            const automaticVoice = voices.find(
+              (voice) => voice.id === automatic[lang],
+            );
+            return (
+              <label className="language-card" key={lang}>
+                <span className="language-card__lang">
+                  {lang === "en"
+                    ? t("languageEnglish", "English")
+                    : t("languageArabic", "Arabic")}
+                </span>
+                <select
+                  value={settings.voice[lang]}
+                  aria-label={`${lang === "en" ? t("languageEnglish", "English") : t("languageArabic", "Arabic")} ${t("voice", "voice")}`}
+                  onChange={(event) =>
+                    void selectVoice(lang, event.currentTarget.value)
+                  }
+                >
+                  <option value="auto">
+                    {t("automatic", "Automatic")}
+                    {automaticVoice ? ` · ${automaticVoice.name}` : ""}
+                  </option>
+                  {voices
+                    .filter((voice) => voice.lang === lang)
+                    .map((voice) => (
+                      <option value={voice.id} key={voice.id}>
+                        {voice.name} · {voiceDetail(voice)}
+                        {!voice.installed
+                          ? ` · ${t("modelNotInstalled", "downloads on first use")}`
+                          : ""}
+                      </option>
+                    ))}
+                </select>
+                {settings.voice[lang] === "auto" && automaticVoice && (
+                  <small className="language-card__auto">
+                    {t(
+                      "automaticUsing",
+                      `Automatic is using ${automaticVoice.name} · ${voiceSource(automaticVoice)}`,
+                      [automaticVoice.name, voiceSource(automaticVoice)],
+                    )}
+                  </small>
+                )}
+              </label>
+            );
+          })}
         </div>
 
         <aside className="help-note">
@@ -1088,6 +1120,29 @@ function OptionsPage() {
           </label>
           <label className="setting-row">
             <span>
+              <strong>
+                {t("selectionChipIconOnly", "Selection button shows only the icon")}
+              </strong>
+              <small>
+                {t(
+                  "selectionChipIconOnlyHelp",
+                  "Hide the “Read selection” label next to the icon.",
+                )}
+              </small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.selectionChipIconOnly}
+              disabled={!settings.selectionChip}
+              onChange={(event) =>
+                void saveSettings({
+                  selectionChipIconOnly: event.currentTarget.checked,
+                })
+              }
+            />
+          </label>
+          <label className="setting-row">
+            <span>
               <strong>{t("readCodeBlocks", "Read code blocks")}</strong>
               <small>
                 {t(
@@ -1146,13 +1201,13 @@ function OptionsPage() {
                 type="range"
                 min="0.5"
                 max="3"
-                step="0.1"
+                step="0.05"
                 value={settings.speed}
                 onChange={(event) =>
                   void saveSettings({ speed: Number(event.currentTarget.value) })
                 }
               />
-              <output>{settings.speed.toFixed(1)}×</output>
+              <output>{formatSpeed(settings.speed)}</output>
             </div>
           </label>
           <label className="setting-control">

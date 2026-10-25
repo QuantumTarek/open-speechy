@@ -134,6 +134,21 @@ describe("Arabic normalization", () => {
   });
 });
 
+describe("Arabic dates and number runs", () => {
+  it("reads a date with the month's name and a range with إلى", () => {
+    const spoken = segmentBlocks(
+      [blockFromText("صدر في 2024-03-06 وارتفع 10-20 مرة.")],
+      () => "ar",
+    )
+      .flatMap((sentence) => sentence.words.flatMap((word) => word.spoken))
+      .join(" ");
+
+    expect(spoken).toContain("ستة مارس ألفان وأربعة وعشرون");
+    expect(spoken).toContain("عشرة إلى عشرون");
+    expect(spoken).not.toContain("سالب");
+  });
+});
+
 describe("Arabic diacritization fallback", () => {
   const maps = {
     input: { _: 0, " ": 1, "#": 2, ب: 3, س: 4, م: 5 },

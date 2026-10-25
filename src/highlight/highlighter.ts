@@ -365,15 +365,39 @@ export class Highlighter {
     const range = this.#rangesForWord(wordIndex)[0];
     if (!view || !range) return;
     const rect = range.getBoundingClientRect();
-    const upperBound = view.innerHeight * 0.2;
-    const lowerBound = view.innerHeight * 0.8;
-    if (rect.top >= upperBound && rect.bottom <= lowerBound) return;
+    // Many sites scroll the article inside an element, not the window.
+    const container = this.#scrollContainer(range.startContainer);
+    const frame = container?.getBoundingClientRect();
+    const top = Math.max(0, frame?.top ?? 0);
+    const bottom = Math.min(view.innerHeight, frame?.bottom ?? view.innerHeight);
+    const height = bottom - top;
+    if (rect.top >= top + height * 0.2 && rect.bottom <= top + height * 0.8) {
+      return;
+    }
 
     this.#programmaticScrollUntil = performance.now() + 2_500;
-    view.scrollTo({
-      top: view.scrollY + rect.top - view.innerHeight * 0.5 + rect.height * 0.5,
+    (container ?? view).scrollBy({
+      top: rect.top + rect.height / 2 - (top + height / 2),
       behavior: this.#reducedMotion ? "auto" : "smooth",
     });
+  }
+
+  // The nearest ancestor that scrolls the node, or null for the page itself.
+  #scrollContainer(node: Node): Element | null {
+    const view = this.#document.defaultView;
+    const root = this.#document.scrollingElement;
+    let element = node.parentElement;
+    while (view && element && element !== root && element !== this.#document.body) {
+      const overflow = view.getComputedStyle(element).overflowY;
+      if (
+        /auto|scroll|overlay/u.test(overflow) &&
+        element.scrollHeight > element.clientHeight + 1
+      ) {
+        return element;
+      }
+      element = element.parentElement;
+    }
+    return null;
   }
 
   #handleManualScroll = (): void => {

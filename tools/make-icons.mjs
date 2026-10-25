@@ -1,9 +1,10 @@
 // Renders the extension icons in public/icon/ from the SVG sources in
-// tools/icons/. The toolbar sizes have their own pixel-aligned drawings;
-// 48 and 128 scale the main one, and 128 keeps the 16 px transparent margin
-// the Chrome Web Store asks for.
+// tools/icons/, and copies the main SVG there for the extension's pages.
+// The toolbar sizes have their own pixel-aligned drawings; 48 and 128 scale
+// the main one, and 128 keeps the 16 px transparent margin the Chrome Web
+// Store asks for.
 import { chromium } from "@playwright/test";
-import { mkdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
 
 const source = async (name) =>
   `data:image/svg+xml;base64,${(await readFile(`tools/icons/${name}`)).toString("base64")}`;
@@ -28,4 +29,6 @@ for (const { size, file, art } of sizes) {
   await page.screenshot({ path: `public/icon/${size}.png`, omitBackground: true });
 }
 await browser.close();
-console.log("Wrote public/icon/16.png, 32.png, 48.png and 128.png.");
+// The pages show the icon at larger sizes, where the SVG stays sharp.
+await copyFile("tools/icons/icon.svg", "public/icon/icon.svg");
+console.log("Wrote public/icon/16.png, 32.png, 48.png, 128.png and icon.svg.");

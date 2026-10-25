@@ -13,6 +13,8 @@ export interface AppSettings {
   readCodeBlocks: boolean;
   urls: "skip" | "domain" | "full";
   selectionChip: boolean;
+  // Show only the icon on the selection button, without its label.
+  selectionChipIconOnly: boolean;
   pdf: { intercept: boolean };
   arabic: { diacritize: boolean };
   server: {
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   readCodeBlocks: false,
   urls: "domain",
   selectionChip: true,
+  selectionChipIconOnly: false,
   pdf: { intercept: true },
   arabic: { diacritize: false },
   server: {
@@ -194,6 +197,10 @@ function mergeSettings(value: Record<string, unknown>): AppSettings {
       DEFAULT_SETTINGS.readCodeBlocks,
     ),
     selectionChip: booleanOr(value.selectionChip, DEFAULT_SETTINGS.selectionChip),
+    selectionChipIconOnly: booleanOr(
+      value.selectionChipIconOnly,
+      DEFAULT_SETTINGS.selectionChipIconOnly,
+    ),
   } as AppSettings;
 }
 
