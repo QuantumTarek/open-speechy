@@ -53,6 +53,9 @@ export class Highlighter {
   readonly #words = new Map<number, WordRange>();
   readonly #sentences = new Map<string, number[]>();
   #nodeWordRanges = new WeakMap<Text, NodeWordRange[]>();
+  // Finding the scroll container reads computed styles up the tree, so it is
+  // looked up once per text node rather than on every word.
+  #scrollContainers = new WeakMap<Text, Element | null>();
   readonly #onSeek: (wordIndex: number) => void;
   readonly #onJumpVisibilityChange: (visible: boolean) => void;
   #styleSheet: CSSStyleSheet | null = null;
@@ -60,6 +63,8 @@ export class Highlighter {
   #clickable = false;
   #currentWord: number | null = null;
   #currentSentence: string | null = null;
+  // The sentence the os-sentence highlight was last built for.
+  #paintedSentence: string | null = null;
   #enabled: boolean;
   #autoScroll: boolean;
   #reducedMotion: boolean;
@@ -101,8 +106,10 @@ export class Highlighter {
     this.#words.clear();
     this.#sentences.clear();
     this.#nodeWordRanges = new WeakMap();
+    this.#scrollContainers = new WeakMap();
     this.#currentWord = null;
     this.#currentSentence = null;
+    this.#paintedSentence = null;
     for (const sentence of sentences) {
       const indices: number[] = [];
       for (const word of sentence.words) {
@@ -157,6 +164,7 @@ export class Highlighter {
     this.#replaceStyle();
     this.#currentWord = null;
     this.#currentSentence = null;
+    this.#paintedSentence = null;
     if (currentWord !== null) {
       this.highlightWord(currentWord, currentSentence ?? undefined);
     }
@@ -166,7 +174,7 @@ export class Highlighter {
     if (this.#currentWord === null) return;
     this.#manualScrollUntil = 0;
     this.#onJumpVisibilityChange(false);
-    this.#scrollToWord(this.#currentWord, true);
+    this.#scrollToRange(this.#rangesForWord(this.#currentWord)[0], true);
   }
 
   highlightWord(wordIndex: number | null, sentenceId?: string): void {
@@ -181,31 +189,42 @@ export class Highlighter {
     const registry = this.#registry();
     if (!registry) return;
 
+    const current =
+      wordIndex === null ? undefined : this.#words.get(wordIndex);
+    const nextSentence =
+      current && this.#enabled ? (sentenceId ?? current.sentenceId) : null;
     registry.delete("os-word");
-    registry.delete("os-sentence");
-    if (wordIndex === null) return;
+    // Repainting the sentence band on every word is wasted work, so it is
+    // only rebuilt when the sentence changes.
+    if (nextSentence !== this.#paintedSentence) {
+      registry.delete("os-sentence");
+      this.#paintedSentence = null;
+    }
+    if (wordIndex === null || !current) return;
 
-    const current = this.#words.get(wordIndex);
-    if (!current) return;
+    const wordRanges = this.#rangesForWord(wordIndex);
     if (!this.#enabled) {
-      this.#scrollToWord(wordIndex);
+      this.#scrollToRange(wordRanges[0]);
       return;
     }
-    const sentence = this.#sentences.get(sentenceId ?? current.sentenceId);
-    const sentenceRanges = this.#rangesForSentence(sentence ?? []);
-    const wordRanges = this.#rangesForWord(wordIndex);
-    if (sentenceRanges.length > 0) {
-      registry.set("os-sentence", new Highlight(...sentenceRanges));
+    if (nextSentence !== null && nextSentence !== this.#paintedSentence) {
+      const sentence = this.#sentences.get(nextSentence);
+      const sentenceRanges = this.#rangesForSentence(sentence ?? []);
+      if (sentenceRanges.length > 0) {
+        registry.set("os-sentence", new Highlight(...sentenceRanges));
+        this.#paintedSentence = nextSentence;
+      }
     }
     if (wordRanges.length > 0) {
       registry.set("os-word", new Highlight(...wordRanges));
     }
-    this.#scrollToWord(wordIndex);
+    this.#scrollToRange(wordRanges[0]);
   }
 
   clear(): void {
     this.highlightWord(null);
     this.#registry()?.delete("os-sentence");
+    this.#paintedSentence = null;
     this.#words.clear();
     this.#sentences.clear();
     if (this.#styleSheet) {
@@ -357,16 +376,15 @@ export class Highlighter {
     return undefined;
   }
 
-  #scrollToWord(wordIndex: number, force = false): void {
+  #scrollToRange(range: Range | undefined, force = false): void {
     if (!this.#autoScroll || (!force && performance.now() < this.#manualScrollUntil)) {
       return;
     }
     const view = this.#document.defaultView;
-    const range = this.#rangesForWord(wordIndex)[0];
     if (!view || !range) return;
     const rect = range.getBoundingClientRect();
     // Many sites scroll the article inside an element, not the window.
-    const container = this.#scrollContainer(range.startContainer);
+    const container = this.#cachedScrollContainer(range.startContainer);
     const frame = container?.getBoundingClientRect();
     const top = Math.max(0, frame?.top ?? 0);
     const bottom = Math.min(view.innerHeight, frame?.bottom ?? view.innerHeight);
@@ -380,6 +398,16 @@ export class Highlighter {
       top: rect.top + rect.height / 2 - (top + height / 2),
       behavior: this.#reducedMotion ? "auto" : "smooth",
     });
+  }
+
+  #cachedScrollContainer(node: Node): Element | null {
+    if (!(node instanceof Text)) return this.#scrollContainer(node);
+    let container = this.#scrollContainers.get(node);
+    if (container === undefined || (container && !container.isConnected)) {
+      container = this.#scrollContainer(node);
+      this.#scrollContainers.set(node, container);
+    }
+    return container;
   }
 
   // The nearest ancestor that scrolls the node, or null for the page itself.

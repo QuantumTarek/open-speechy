@@ -12,20 +12,37 @@ function engineFor(
   call: Exclude<LocalEngineCall, { type: "abort" }>,
 ): TtsEngine {
   const key =
-    call.engine === "piper" ? `piper:${call.diacritizeArabic}` : "kokoro";
+    call.engine === "piper"
+      ? `piper:${call.diacritizeArabic}`
+      : `kokoro:${call.gpu}`;
   let engine = engines.get(key);
   if (!engine) {
     engine =
       call.engine === "piper"
         ? new PiperEngine(call.diacritizeArabic)
-        : new KokoroEngine();
+        : new KokoroEngine(call.gpu);
     engines.set(key, engine);
   }
   return engine;
 }
 
 function reply(message: LocalEngineReply): void {
-  self.postMessage(message);
+  self.postMessage(message, transferables(message));
+}
+
+// Synthesized audio is moved to the page rather than copied.
+function transferables(message: LocalEngineReply): Transferable[] {
+  if (message.type !== "result") return [];
+  const audio = (message.value as { audio?: unknown } | undefined)?.audio;
+  if (
+    audio instanceof Float32Array &&
+    audio.buffer instanceof ArrayBuffer &&
+    audio.byteOffset === 0 &&
+    audio.byteLength === audio.buffer.byteLength
+  ) {
+    return [audio.buffer];
+  }
+  return [];
 }
 
 async function run(

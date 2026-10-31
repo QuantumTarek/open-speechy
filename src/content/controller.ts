@@ -25,8 +25,16 @@ import type { AppSettings } from "../settings/store";
 
 type ReadSource = "article" | "selection";
 
+interface WordIndex {
+  sentences: SentencePlan[];
+  totalWords: number;
+  langs: Map<number, Lang>;
+}
+
 export class ContentController {
   #sentences: SentencePlan[] = [];
+  // Looked up on every word, so built once per sentence list.
+  #wordIndexFor: WordIndex | null = null;
   #state: SessionState = "idle";
   #error: string | undefined;
   #notice: string | undefined;
@@ -339,7 +347,10 @@ export class ContentController {
   #observeRoot(root: Element): void {
     this.#stopMutationObserver();
     const target = root.parentElement ?? root;
-    this.#mutationObserver = new MutationObserver(() => {
+    this.#mutationObserver = new MutationObserver((records) => {
+      // Sites restyle icons, ads and animations constantly. Only a change to
+      // text can move the words being read.
+      if (!records.some(changesText)) return;
       if (this.#mutationTimer) clearTimeout(this.#mutationTimer);
       this.#mutationTimer = setTimeout(() => {
         this.#mutationTimer = null;
@@ -380,7 +391,6 @@ export class ContentController {
     );
     this.#sentences = rebindSentencePieces(this.#sentences, refreshed);
     this.#highlighter?.setSentences(this.#sentences);
-    this.#highlighter?.updateOptions(this.#highlighterOptions());
     if (this.#currentWordIndex !== null) {
       const sentence = this.#sentences.find((candidate) =>
         candidate.words.some((word) => word.index === this.#currentWordIndex),
@@ -501,10 +511,7 @@ export class ContentController {
 
   #playerProps(): PlayerBarProps {
     const lang = this.#languageForWord(this.#currentWordIndex);
-    const totalWords = this.#sentences.reduce(
-      (total, sentence) => total + sentence.words.length,
-      0,
-    );
+    const { totalWords } = this.#wordIndex();
     return {
       status: this.#state,
       error: this.#error,
@@ -551,14 +558,40 @@ export class ContentController {
   }
 
   #languageForWord(wordIndex: number | null): Lang {
-    if (wordIndex !== null) {
-      const current = this.#sentences.find((sentence) =>
-        sentence.words.some((word) => word.index === wordIndex),
-      );
-      if (current) return current.lang;
-    }
-    return this.#sentences[0]?.lang ?? "en";
+    const lang =
+      wordIndex === null ? undefined : this.#wordIndex().langs.get(wordIndex);
+    return lang ?? this.#sentences[0]?.lang ?? "en";
   }
+
+  #wordIndex(): WordIndex {
+    if (this.#wordIndexFor?.sentences !== this.#sentences) {
+      const langs = new Map<number, Lang>();
+      let totalWords = 0;
+      for (const sentence of this.#sentences) {
+        totalWords += sentence.words.length;
+        for (const word of sentence.words) langs.set(word.index, sentence.lang);
+      }
+      this.#wordIndexFor = { sentences: this.#sentences, totalWords, langs };
+    }
+    return this.#wordIndexFor;
+  }
+}
+
+function changesText(record: MutationRecord): boolean {
+  if (record.type === "characterData") return true;
+  if (record.type === "childList") {
+    return [...record.addedNodes, ...record.removedNodes].some(hasText);
+  }
+  return hasText(record.target);
+}
+
+function hasText(node: Node): boolean {
+  if (node instanceof Text) return node.data.trim() !== "";
+  const walker = node.ownerDocument?.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+  for (let text = walker?.nextNode(); text; text = walker?.nextNode()) {
+    if ((text as Text).data.trim() !== "") return true;
+  }
+  return false;
 }
 
 function toPlayableSentence(sentence: SentencePlan): PlayableSentence {

@@ -95,6 +95,12 @@ describe("sentence highlight", () => {
     ]);
     expect(highlights.get("os-word")?.ranges.map(String)).toEqual(["brave"]);
 
+    const sentenceBand = highlights.get("os-sentence");
+    highlighter.highlightWord(2, "s0");
+    // The sentence band is kept while the reader stays in the sentence.
+    expect(highlights.get("os-sentence")).toBe(sentenceBand);
+    expect(highlights.get("os-word")?.ranges.map(String)).toEqual(["world."]);
+
     highlighter.highlightWord(4, "s1");
     expect(highlights.get("os-sentence")?.ranges.map(String)).toEqual([
       "Bold",

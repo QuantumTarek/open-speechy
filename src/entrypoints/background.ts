@@ -439,6 +439,7 @@ async function startSession(
           ? { url: settings.server.url, token: settings.server.token }
           : undefined,
       diacritizeArabic: settings.arabic.diacritize,
+      kokoroGpu: settings.kokoroGpu,
     });
   }
 
@@ -912,6 +913,7 @@ async function auditionOffscreenVoice(
           ? { url: settings.server.url, token: settings.server.token }
           : undefined,
       diacritizeArabic: settings.arabic.diacritize,
+      kokoroGpu: settings.kokoroGpu,
     });
     await finished;
   } finally {
