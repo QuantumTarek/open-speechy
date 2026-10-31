@@ -64,6 +64,27 @@ describe("article text extraction", () => {
     ]);
     selection?.removeAllRanges();
   });
+
+  it("reads a selection inside preformatted text", () => {
+    const root = document.createElement("pre");
+    root.textContent = "# Title\n\nThis doc answers four questions.";
+    document.body.append(root);
+    const text = root.firstChild as Text;
+    const selection = document.getSelection();
+    const range = document.createRange();
+    range.setStart(text, 9);
+    range.setEnd(text, text.length);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const blocks = extractSelectionBlocks(selection as Selection);
+
+    expect(blocks.map((block) => block.text)).toEqual([
+      "This doc answers four questions.",
+    ]);
+    selection?.removeAllRanges();
+    root.remove();
+  });
 });
 
 describe("English number normalization", () => {

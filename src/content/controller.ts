@@ -131,6 +131,8 @@ export class ContentController {
     this.#readRoot = null;
     const selection = this.window.getSelection();
     const blocks = selection ? extractSelectionBlocks(selection) : [];
+    // The browser paints the selection over the reading highlight.
+    if (blocks.length > 0) selection?.removeAllRanges();
     await this.#start(blocks, "selection");
   }
 

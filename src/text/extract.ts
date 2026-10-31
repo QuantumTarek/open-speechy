@@ -204,7 +204,9 @@ export function extractSelectionBlocks(selection: Selection): TextBlock[] {
         : (walker.nextNode() as Text | null);
 
     while (node) {
-      if (range.intersectsNode(node) && !shouldSkip(node, false, hiddenCache)) {
+      // A selection is deliberate, so code and preformatted text are read too.
+      // Plain-text pages, such as a .md file, are one big <pre>.
+      if (range.intersectsNode(node) && !shouldSkip(node, true, hiddenCache)) {
         const start = node === range.startContainer ? range.startOffset : 0;
         const end = node === range.endContainer ? range.endOffset : node.length;
         if (end > start) {
