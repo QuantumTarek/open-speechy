@@ -194,6 +194,12 @@
   "readCodeBlocksHelp": {
     "message": "Include preformatted code in article extraction."
   },
+  "kokoroGpu": {
+    "message": "GPU acceleration"
+  },
+  "kokoroGpuHelp": {
+    "message": "Run English on-device voices on the GPU. Faster and lighter on the CPU, but downloads a 325 MB model. Uses the CPU when WebGPU is unavailable."
+  },
   "arabicDiacritization": {
     "message": "Arabic diacritization"
   },

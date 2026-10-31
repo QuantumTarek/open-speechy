@@ -11,6 +11,10 @@ export interface ClockSegment {
   generation?: number;
 }
 
+// Upper bound between checks, so a resync or a missed boundary is corrected
+// quickly without waking up on every frame.
+const MAX_TICK_DELAY_MS = 250;
+
 export interface ClockTick {
   wordIndex: number;
   driftMs: number;
@@ -20,7 +24,7 @@ export class PlaybackClock {
   readonly #highlighter: Highlighter;
   readonly #onTick: (tick: ClockTick) => void;
   readonly #segments: ClockSegment[] = [];
-  #frameId = 0;
+  #timer: ReturnType<typeof setTimeout> | null = null;
   #pausedAt: number | null = null;
   #lastWordIndex: number | null = null;
   #generation = 0;
@@ -43,14 +47,13 @@ export class PlaybackClock {
     this.#segments.sort(
       (left, right) => left.startedAtPerf - right.startedAtPerf,
     );
-    if (!this.#frameId && this.#pausedAt === null) this.#scheduleFrame();
+    if (this.#pausedAt === null) this.#scheduleTick(0);
   }
 
   setPaused(paused: boolean): void {
     if (paused && this.#pausedAt === null) {
       this.#pausedAt = performance.now();
-      cancelAnimationFrame(this.#frameId);
-      this.#frameId = 0;
+      this.#cancelTick();
       return;
     }
     if (!paused && this.#pausedAt !== null) {
@@ -59,7 +62,7 @@ export class PlaybackClock {
         segment.startedAtPerf += pauseDuration;
       }
       this.#pausedAt = null;
-      this.#scheduleFrame();
+      this.#scheduleTick(0);
     }
   }
 
@@ -68,30 +71,37 @@ export class PlaybackClock {
     if (!current) return;
     current.startedAtPerf = performance.now() - positionMs / rate;
     current.rate = rate;
+    if (this.#pausedAt === null) this.#scheduleTick(0);
   }
 
   stop(): void {
-    cancelAnimationFrame(this.#frameId);
-    this.#frameId = 0;
+    this.#cancelTick();
     this.#segments.length = 0;
     this.#lastWordIndex = null;
     this.#pausedAt = null;
     this.#highlighter.highlightWord(null);
   }
 
-  #scheduleFrame(): void {
-    this.#frameId = requestAnimationFrame(() => this.#tick());
+  // Wakes up at the next word boundary instead of on every animation frame,
+  // so the page is not kept busy between words or while audio is buffering.
+  #scheduleTick(delayMs: number): void {
+    this.#cancelTick();
+    this.#timer = setTimeout(() => this.#tick(), Math.max(0, delayMs));
+  }
+
+  #cancelTick(): void {
+    if (this.#timer !== null) clearTimeout(this.#timer);
+    this.#timer = null;
   }
 
   #tick(): void {
-    this.#frameId = 0;
+    this.#timer = null;
     if (this.#pausedAt !== null) return;
     const now = performance.now();
+    const nextStart = this.#nextSegmentStart(now);
     const active = this.#activeSegment(now);
     if (!active) {
-      if (this.#segments.some((segment) => segment.startedAtPerf > now)) {
-        this.#scheduleFrame();
-      }
+      if (nextStart !== undefined) this.#scheduleTick(nextStart - now + 1);
       return;
     }
 
@@ -107,7 +117,18 @@ export class PlaybackClock {
         });
       }
     }
-    this.#scheduleFrame();
+
+    let boundaryMs = active.durationMs;
+    if (timing && timing.startMs > positionMs) boundaryMs = timing.startMs;
+    else if (timing && timing.endMs > positionMs) boundaryMs = timing.endMs;
+    let delayMs = Math.max(0, boundaryMs - positionMs) / active.rate + 1;
+    if (nextStart !== undefined) delayMs = Math.min(delayMs, nextStart - now + 1);
+    this.#scheduleTick(Math.min(MAX_TICK_DELAY_MS, delayMs));
+  }
+
+  #nextSegmentStart(now: number): number | undefined {
+    return this.#segments.find((segment) => segment.startedAtPerf > now)
+      ?.startedAtPerf;
   }
 
   #activeSegment(now: number): ClockSegment | undefined {

@@ -25,7 +25,7 @@ describe("playback clock", () => {
 
   it("drops audio segments that were queued before a seek", () => {
     vi.useFakeTimers({
-      toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"],
+      toFake: ["setTimeout", "clearTimeout", "performance"],
     });
     const highlighted: Array<number | null> = [];
     const highlighter = {
@@ -44,5 +44,38 @@ describe("playback clock", () => {
     expect(highlighted).not.toContain(5);
     expect(highlighted).not.toContain(6);
     clock.stop();
+  });
+
+  it("advances at word boundaries without waking on every frame", () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "performance"],
+    });
+    const words: number[] = [];
+    const highlighter = { highlightWord: () => {} } as unknown as Highlighter;
+    const clock = new PlaybackClock(highlighter, (tick) =>
+      words.push(tick.wordIndex),
+    );
+    clock.addSegment({
+      sentenceId: "s0",
+      timings: [
+        { wordIndex: 0, startMs: 0, endMs: 400 },
+        { wordIndex: 1, startMs: 400, endMs: 1_000 },
+      ],
+      durationMs: 1_000,
+      rate: 1,
+      startedAtPerf: performance.now() + 100,
+      generation: 0,
+    });
+
+    vi.advanceTimersByTime(50);
+    expect(words).toEqual([]);
+    vi.advanceTimersByTime(100);
+    expect(words).toEqual([0]);
+    vi.advanceTimersByTime(400);
+    expect(words).toEqual([0, 1]);
+    // A single pending wake-up for the next boundary, not a frame loop.
+    expect(vi.getTimerCount()).toBeLessThanOrEqual(1);
+    clock.stop();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

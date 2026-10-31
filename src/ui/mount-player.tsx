@@ -46,7 +46,8 @@ const PLAYER_CSS = `
     border-radius: 14px;
     background: var(--bg);
     box-shadow: 0 10px 30px rgba(14, 16, 52, 0.18), 0 1px 3px rgba(14, 16, 52, 0.12);
-    backdrop-filter: blur(14px) saturate(1.4);
+    /* No backdrop-filter: the background is nearly opaque, and the blur is
+       redone on every frame the page or the spinner changes. */
     outline: none;
   }
   .player:focus-visible { box-shadow: 0 0 0 3px var(--accent), 0 10px 30px rgba(14, 16, 52, 0.18); }
@@ -122,12 +123,14 @@ const PLAYER_CSS = `
   .player__chip[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
   .player .player__close { width: 24px; height: 24px; color: var(--muted); }
   .player__close svg { width: 14px; height: 14px; }
-  .player__progress { height: 2px; background: var(--line); }
+  .player__progress { height: 2px; overflow: hidden; background: var(--line); }
+  /* Scaled rather than resized, so the animation skips layout and paint. */
   .player__progress span {
     display: block;
     height: 100%;
     background: var(--accent);
-    transition: width 0.25s ease;
+    transform-origin: left;
+    transition: transform 0.25s ease;
   }
   .player__panel {
     display: grid;

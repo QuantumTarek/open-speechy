@@ -81,6 +81,7 @@ export type RuntimeMessage =
       // passes the settings the engines need.
       server?: { url: string; token: string };
       diacritizeArabic?: boolean;
+      kokoroGpu?: boolean;
     }
   | {
       type: "offscreen/session-control";

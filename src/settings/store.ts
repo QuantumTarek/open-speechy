@@ -11,6 +11,8 @@ export interface AppSettings {
   autoScroll: boolean;
   lookahead: number;
   readCodeBlocks: boolean;
+  // Run Kokoro on the GPU with WebGPU instead of the CPU.
+  kokoroGpu: boolean;
   urls: "skip" | "domain" | "full";
   selectionChip: boolean;
   // Show only the icon on the selection button, without its label.
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoScroll: true,
   lookahead: 2,
   readCodeBlocks: false,
+  kokoroGpu: true,
   urls: "domain",
   selectionChip: true,
   selectionChipIconOnly: false,
@@ -196,6 +199,7 @@ function mergeSettings(value: Record<string, unknown>): AppSettings {
       value.readCodeBlocks,
       DEFAULT_SETTINGS.readCodeBlocks,
     ),
+    kokoroGpu: booleanOr(value.kokoroGpu, DEFAULT_SETTINGS.kokoroGpu),
     selectionChip: booleanOr(value.selectionChip, DEFAULT_SETTINGS.selectionChip),
     selectionChipIconOnly: booleanOr(
       value.selectionChipIconOnly,

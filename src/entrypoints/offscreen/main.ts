@@ -86,7 +86,8 @@ async function startSession(
       server: message.server
         ? new ServerEngine(message.server.url, message.server.token)
         : undefined,
-      createKokoro: () => new WorkerEngine("kokoro", localEngines),
+      createKokoro: () =>
+        new WorkerEngine("kokoro", localEngines, false, message.kokoroGpu),
       createPiper: () =>
         new WorkerEngine(
           "piper",

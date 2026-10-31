@@ -166,7 +166,7 @@ export function PlayerBar(props: PlayerBarProps) {
       </div>
 
       <div className="player__progress" aria-hidden="true">
-        <span style={{ width: `${progress}%` }} />
+        <span style={{ transform: `scaleX(${progress / 100})` }} />
       </div>
 
       {expanded && (

@@ -53,10 +53,7 @@ export class WebAudioPlayer implements AudioScheduler {
       result.audio.length,
       result.sampleRate,
     );
-    const channel = buffer.getChannelData(0);
-    for (let index = 0; index < result.audio.length; index += 1) {
-      channel[index] = result.audio[index];
-    }
+    buffer.getChannelData(0).set(result.audio);
     const source = this.#context.createBufferSource();
     source.buffer = buffer;
     source.connect(this.#context.destination);

@@ -22,6 +22,8 @@ import type {
 } from "./types";
 
 const MODEL_ID = "kokoro-en-q8";
+// WebGPU needs the full-precision model; the quantized one runs on the CPU.
+const GPU_MODEL_ID = "kokoro-en-fp32";
 const MODEL_REPO = "onnx-community/Kokoro-82M-v1.0-ONNX";
 
 export class KokoroEngine implements TtsEngine {
@@ -29,6 +31,12 @@ export class KokoroEngine implements TtsEngine {
   readonly #models = new ModelManager(MODEL_DESCRIPTORS);
   #tts: KokoroTTS | null = null;
   #loading: Promise<void> | null = null;
+  readonly #gpu: boolean;
+  #gpuAvailable: Promise<boolean> | null = null;
+
+  constructor(gpu = false) {
+    this.#gpu = gpu;
+  }
 
   async init(
     onProgress?: (progress: {
@@ -54,7 +62,8 @@ export class KokoroEngine implements TtsEngine {
   async listVoices(): Promise<VoiceInfo[]> {
     const installed = (modelId: string) =>
       this.#models.isInstalled(modelId).catch(() => false);
-    const baseInstalled = await installed(MODEL_ID);
+    const modelId = await this.#modelId();
+    const baseInstalled = await installed(modelId);
     const installedVoices = await Promise.all(
       KOKORO_VOICES.map((voice) =>
         installed(voiceModelId(voice)),
@@ -69,7 +78,12 @@ export class KokoroEngine implements TtsEngine {
       quality: "standard",
       local: true,
       supportsWordTimings: false,
-      sizeBytes: voice === "af_heart" ? 90_000_000 : undefined,
+      sizeBytes:
+        voice === "af_heart"
+          ? modelId === GPU_MODEL_ID
+            ? 330_000_000
+            : 90_000_000
+          : undefined,
       installed: baseInstalled && installedVoices[index],
     }));
   }
@@ -138,14 +152,16 @@ export class KokoroEngine implements TtsEngine {
       stage: string;
     }) => void,
   ): Promise<void> {
-    if (!this.#models.canDownload(MODEL_ID)) {
+    const modelId = await this.#modelId();
+    const gpu = modelId === GPU_MODEL_ID;
+    if (!this.#models.canDownload(modelId)) {
       throw new ModelUnavailableError(
-        MODEL_ID,
+        modelId,
         "the pinned revision and SHA-256 manifest are not available",
       );
     }
-    if (!(await this.#models.isInstalled(MODEL_ID))) {
-      await this.#models.download(MODEL_ID, (progress) => {
+    if (!(await this.#models.isInstalled(modelId))) {
+      await this.#models.download(modelId, (progress) => {
         onProgress?.({
           loaded: progress.loaded,
           total: progress.total,
@@ -155,9 +171,9 @@ export class KokoroEngine implements TtsEngine {
     }
 
     kokoroEnv.wasmPaths = packagedUrl("ort-transformers/");
-    const model = this.#models.get(MODEL_ID);
+    const model = this.#models.get(modelId);
     if (!model?.revision) {
-      throw new ModelUnavailableError(MODEL_ID, "the revision is not pinned");
+      throw new ModelUnavailableError(modelId, "the revision is not pinned");
     }
     // transformers.js rejects a config with both sources off. The verified cache
     // is still read first, and remote fetches are pinned and SHA-checked on put.
@@ -170,8 +186,8 @@ export class KokoroEngine implements TtsEngine {
     transformersEnv.remotePathTemplate = `{model}/resolve/${model.revision}/`;
     transformersEnv.customCache = this.#models.createTransformersCache();
     this.#tts = await KokoroTTS.from_pretrained(MODEL_REPO, {
-      dtype: "q8",
-      device: "wasm",
+      dtype: gpu ? "fp32" : "q8",
+      device: gpu ? "webgpu" : "wasm",
       progress_callback: (progress) => {
         if ("loaded" in progress && "total" in progress) {
           onProgress?.({
@@ -183,6 +199,14 @@ export class KokoroEngine implements TtsEngine {
       },
     });
     if (this.#tts) onProgress?.({ loaded: 1, total: 1, stage: "ready" });
+  }
+
+  // The GPU model is used only when it was asked for and the worker has a
+  // WebGPU adapter. Otherwise Kokoro falls back to the CPU.
+  async #modelId(): Promise<string> {
+    if (!this.#gpu) return MODEL_ID;
+    this.#gpuAvailable ??= hasWebGpu();
+    return (await this.#gpuAvailable) ? GPU_MODEL_ID : MODEL_ID;
   }
 
   async #ensureVoice(voice: string, signal: AbortSignal): Promise<void> {
@@ -219,4 +243,15 @@ const KOKORO_JS_VOICE_CACHE = "kokoro-voices";
 
 function voiceModelId(voice: string): string {
   return `kokoro-voice-${voice}`;
+}
+
+async function hasWebGpu(): Promise<boolean> {
+  const gpu = (navigator as Navigator & {
+    gpu?: { requestAdapter(): Promise<unknown> };
+  }).gpu;
+  try {
+    return Boolean(await gpu?.requestAdapter());
+  } catch {
+    return false;
+  }
 }

@@ -1161,6 +1161,24 @@ function OptionsPage() {
           </label>
           <label className="setting-row">
             <span>
+              <strong>{t("kokoroGpu", "GPU acceleration")}</strong>
+              <small>
+                {t(
+                  "kokoroGpuHelp",
+                  "Run English on-device voices on the GPU. Faster and lighter on the CPU, but downloads a 325 MB model. Uses the CPU when WebGPU is unavailable.",
+                )}
+              </small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.kokoroGpu}
+              onChange={(event) =>
+                void saveSettings({ kokoroGpu: event.currentTarget.checked })
+              }
+            />
+          </label>
+          <label className="setting-row">
+            <span>
               <strong>{t("arabicDiacritization", "Arabic diacritization")}</strong>
               <small>
                 {t(

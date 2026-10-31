@@ -20,6 +20,7 @@ export interface InitProgress {
 interface EngineTarget {
   engine: LocalEngineId;
   diacritizeArabic: boolean;
+  gpu: boolean;
 }
 
 export type LocalEngineCall =
@@ -144,10 +145,11 @@ export class WorkerEngine implements TtsEngine {
     id: LocalEngineId,
     host: LocalEngineWorker,
     diacritizeArabic = false,
+    gpu = false,
   ) {
     this.id = id;
     this.#host = host;
-    this.#target = { engine: id, diacritizeArabic };
+    this.#target = { engine: id, diacritizeArabic, gpu };
   }
 
   async init(onProgress?: (progress: InitProgress) => void): Promise<void> {
