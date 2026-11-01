@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import logging
 import os
 import re
 import uuid
@@ -17,6 +18,8 @@ from .auth import AuthManager, PairingManager
 from .engines.base import EngineUnavailable, Synthesis
 from .engines.registry import EngineRegistry, ModelBusy
 from .synthesis_queue import DuplicateRequestError, SynthesisQueue
+
+log = logging.getLogger("open_speechy.server")
 
 HOST = "127.0.0.1"
 PORT = 5123
@@ -216,6 +219,11 @@ def create_app(
         except DuplicateRequestError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
         except EngineUnavailable as error:
+            # The cause (a model or library error) is not sent to the
+            # extension, so keep it in the server log.
+            log.warning(
+                "Synthesis with %s failed: %s", body.voiceId, error, exc_info=True
+            )
             raise HTTPException(status_code=503, detail=str(error)) from error
         except asyncio.CancelledError as error:
             raise HTTPException(status_code=499, detail="Synthesis cancelled.") from error

@@ -9,6 +9,7 @@ from server.engines.chatterbox_nano import ChatterboxNanoEngine
 from server.engines.kokoro import KOKORO_VOICES, KokoroEngine
 from server.engines.registry import EngineRegistry
 from server.engines.silma import SilmaEngine
+from server.engines.voicetut import VOICETUT_SPEAKERS, VoiceTutEngine
 from server.model_store import model_pin
 
 
@@ -46,10 +47,59 @@ def test_pinned_model_revisions_are_committed_and_immutable() -> None:
         "silma_vocoder",
         "chatterbox_nano",
         "chatterbox_ml",
+        "voicetut",
     ):
         revision = model_pin(name)["revision"]
         assert len(revision) == 40
         assert all(character in "0123456789abcdef" for character in revision)
+
+
+class FakeVoiceTut:
+    sampling_rate = 24_000
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def synthesize(self, text: str, **kwargs: object):
+        assert text == "ازيك عامل ايه"
+        self.calls.append(kwargs)
+        return [0.1, -0.1, 0.2]
+
+
+def test_voicetut_adapter_speaks_egyptian_with_the_chosen_speaker() -> None:
+    model = FakeVoiceTut()
+    engine = VoiceTutEngine(
+        model_factory=lambda *_: model,
+        snapshot_provider=lambda _: Path("/pinned/voicetut"),
+        steps=16,
+    )
+
+    async def run() -> None:
+        result = await engine.synthesize(
+            ["ازيك", "عامل", "ايه"], "ar", 1.1, "server:voicetut:yasmin"
+        )
+        assert result.audio_wav.startswith(b"RIFF")
+        assert result.sample_rate == 24_000
+        await engine.synthesize(
+            ["ازيك", "عامل", "ايه"], "ar", 1.0, "server:voicetut:unknown"
+        )
+        await engine.synthesize(
+            ["ازيك", "عامل", "ايه"], "ar", 1.0, "server:voicetut:tarek"
+        )
+
+    asyncio.run(run())
+    assert model.calls[0] == {
+        "speaker": "Yasmin",
+        "language": "arz",
+        "num_step": 16,
+        "speed": 1.1,
+    }
+    assert model.calls[1]["speaker"] == "Mohammed"
+    # The model names this speaker "Tareq", not after its file, tarek.wav.
+    assert model.calls[2]["speaker"] == "Tareq"
+    voices = engine.voices()
+    assert len(voices) == len(VOICETUT_SPEAKERS)
+    assert {voice["lang"] for voice in voices} == {"ar"}
 
 
 def test_kokoro_adapter_loads_a_pinned_pipeline_and_returns_audio() -> None:

@@ -8,7 +8,7 @@ used.
 
 - In-browser voices (Kokoro for English, Piper for Arabic) that download once
 - Your system's Premium and Enhanced voices
-- An optional local server with larger voices (Kokoro, SILMA, Chatterbox)
+- An optional local server with larger voices (Kokoro, SILMA, Chatterbox, VoiceTut Egyptian Arabic)
 
 ## Setup
 
