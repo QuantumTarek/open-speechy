@@ -50,5 +50,19 @@
       "t3_mtl23ls_v2.safetensors",
       "ve.pt"
     ]
+  },
+  "voicetut": {
+    "repoId": "mohammedaly22/VoiceTut-TTS",
+    "revision": "b36bdf4416864d84f47ca77ce3decf34f6ab16cc",
+    "license": "Apache-2.0",
+    "bytes": 2471413277,
+    "files": [
+      "chat_template.jinja",
+      "config.json",
+      "model.safetensors",
+      "reference_speakers/*",
+      "tokenizer.json",
+      "tokenizer_config.json"
+    ]
   }
 }

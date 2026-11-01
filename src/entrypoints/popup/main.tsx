@@ -1,7 +1,9 @@
 import { ArrowUpRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import type { Lang, VoiceInfo } from "../../engines/types";
 import { setDocumentLanguage, t } from "../../i18n";
+import { DEFAULT_SETTINGS, SettingsStore } from "../../settings/store";
 import "./popup.css";
 
 type PopupAction =
@@ -27,11 +29,84 @@ function tabIsPdf(url: string | undefined): boolean {
   return false;
 }
 
+const settingsStore = new SettingsStore();
+
+const VOICE_LANGS: { lang: Lang; label: () => string }[] = [
+  { lang: "en", label: () => t("languageEnglish", "English") },
+  { lang: "ar", label: () => t("languageArabic", "Arabic") },
+];
+
+function groupLabel(voice: VoiceInfo): string {
+  if (voice.engineId === "server") return t("voiceLocalServer", "Local server");
+  if (voice.engineId === "system") return t("groupSystemVoices", "System voices");
+  return t("voiceOnDevice", "On this device");
+}
+
+function VoicePicker(props: {
+  lang: Lang;
+  label: string;
+  voices: VoiceInfo[];
+  value: string;
+  onChange: (voiceId: string) => void;
+}) {
+  const groups = new Map<string, VoiceInfo[]>();
+  for (const voice of props.voices) {
+    if (voice.lang !== props.lang) continue;
+    const group = groupLabel(voice);
+    groups.set(group, [...(groups.get(group) ?? []), voice]);
+  }
+  // Keep a saved voice selectable even if its source is offline right now.
+  const known = props.value === "auto" || props.voices.some((v) => v.id === props.value);
+  return (
+    <label className="popup__voice">
+      <span>{props.label}</span>
+      <select
+        value={props.value}
+        onChange={(event) => props.onChange(event.currentTarget.value)}
+      >
+        <option value="auto">{t("automatic", "Automatic")}</option>
+        {!known && <option value={props.value}>{props.value}</option>}
+        {[...groups].map(([group, voices]) => (
+          <optgroup key={group} label={group}>
+            {voices.map((voice) => (
+              <option key={voice.id} value={voice.id}>
+                {voice.name}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function PopupPage() {
   const [busy, setBusy] = useState<PopupAction | null>(null);
   const [notice, setNotice] = useState("");
   const [pdfTab, setPdfTab] = useState(false);
   const [docTab, setDocTab] = useState(false);
+  const [voices, setVoices] = useState<VoiceInfo[]>([]);
+  const [voicePrefs, setVoicePrefs] = useState(DEFAULT_SETTINGS.voice);
+
+  useEffect(() => {
+    void settingsStore.load().then((loaded) => setVoicePrefs(loaded.voice));
+    void (
+      chrome.runtime.sendMessage({ type: "voices/list" }) as Promise<{
+        ok?: boolean;
+        voices?: VoiceInfo[];
+      }>
+    )
+      .then((response) => {
+        if (response?.ok && response.voices) setVoices(response.voices);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  async function selectVoice(lang: Lang, voiceId: string): Promise<void> {
+    setVoicePrefs((current) => ({ ...current, [lang]: voiceId }));
+    const updated = await settingsStore.update({ voice: { [lang]: voiceId } });
+    setVoicePrefs(updated.voice);
+  }
 
   useEffect(() => {
     void chrome.tabs
@@ -75,6 +150,18 @@ function PopupPage() {
           <h1>{t("popupHeadline", "Read this page.")}</h1>
         </div>
       </header>
+      <div className="popup__voices">
+        {VOICE_LANGS.map(({ lang, label }) => (
+          <VoicePicker
+            key={lang}
+            lang={lang}
+            label={label()}
+            voices={voices}
+            value={voicePrefs[lang]}
+            onChange={(voiceId) => void selectVoice(lang, voiceId)}
+          />
+        ))}
+      </div>
       <button
         className="popup__primary"
         type="button"

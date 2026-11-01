@@ -13,6 +13,7 @@ from .chatterbox_ml import ChatterboxMultilingualEngine
 from .chatterbox_nano import ChatterboxNanoEngine
 from .kokoro import KokoroEngine
 from .silma import SilmaEngine
+from .voicetut import VoiceTutEngine
 
 ALIGNER_ID = "aligner"
 
@@ -90,6 +91,7 @@ class EngineRegistry:
             else [
                 KokoroEngine(),
                 SilmaEngine(),
+                VoiceTutEngine(),
                 ChatterboxNanoEngine(),
                 ChatterboxMultilingualEngine(),
             ]
