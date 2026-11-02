@@ -106,6 +106,17 @@ describe("sentence highlight", () => {
       "Bold",
       "Next one.",
     ]);
+    // Simulate a page replacing its styles while the extension stays loaded.
+    document.adoptedStyleSheets = [];
+    document.querySelectorAll('style[data-open-speechy="highlights"]').forEach(
+      (style) => style.remove(),
+    );
+    highlighter.highlightWord(4, "s1");
+    expect(
+      document.adoptedStyleSheets.length > 0 ||
+        document.querySelector('style[data-open-speechy="highlights"]') !== null,
+    ).toBe(true);
+    expect(highlights.get("os-word")?.ranges.map(String)).toEqual(["Next"]);
     highlighter.dispose();
   });
 });

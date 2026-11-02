@@ -103,6 +103,7 @@ export class Highlighter {
   }
 
   setSentences(sentences: SentencePlan[]): void {
+    this.#ensureStyle();
     this.#words.clear();
     this.#sentences.clear();
     this.#nodeWordRanges = new WeakMap();
@@ -178,6 +179,7 @@ export class Highlighter {
   }
 
   highlightWord(wordIndex: number | null, sentenceId?: string): void {
+    this.#ensureStyle();
     if (
       this.#currentWord === wordIndex &&
       this.#currentSentence === sentenceId
@@ -299,6 +301,20 @@ export class Highlighter {
     return typeof CSS !== "undefined" && "highlights" in CSS
       ? CSS.highlights
       : null;
+  }
+
+  // Long-lived pages can replace their stylesheets or head during navigation.
+  #ensureStyle(): void {
+    if (this.#styleSheet) {
+      if (!this.#document.adoptedStyleSheets.includes(this.#styleSheet)) {
+        this.#document.adoptedStyleSheets = [
+          ...this.#document.adoptedStyleSheets,
+          this.#styleSheet,
+        ];
+      }
+    } else if (!this.#styleElement?.isConnected) {
+      this.#installStyle();
+    }
   }
 
   #installStyle(): void {
