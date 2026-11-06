@@ -1,3 +1,4 @@
+import { playbackEpochTime } from "../../playback/time";
 import { FakeEngine, isTestEngineEnabled } from "../../engines/fake";
 import { LanguageRouterEngine } from "../../engines/language-router";
 import { ServerEngine } from "../../engines/server";
@@ -114,7 +115,7 @@ async function startSession(
       void emit({
         type: "session/sentence-start",
         ...event,
-        startedAtMs: performance.timeOrigin + startedAtPerf,
+        startedAtMs: playbackEpochTime(startedAtPerf),
       });
     },
   });

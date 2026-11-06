@@ -1,3 +1,4 @@
+import { playbackLocalTime } from "../playback/time";
 import type { Lang, SentencePlan, VoiceInfo } from "../engines/types";
 import { Highlighter } from "../highlight/highlighter";
 import { highlightColors } from "../highlight/colors";
@@ -442,7 +443,7 @@ export class ContentController {
         timings: event.timings,
         durationMs: event.durationMs,
         rate: event.rate,
-        startedAtPerf: event.startedAtMs - performance.timeOrigin,
+        startedAtPerf: playbackLocalTime(event.startedAtMs),
         generation: event.generation,
       });
     }
