@@ -148,6 +148,11 @@ export function extractTextBlocks(
   );
   const blocks: TextBlock[] = [];
   const hiddenCache = new WeakMap<Element, boolean>();
+  // Chrome displays plain-text documents (including local Markdown) in a
+  // <pre>. That is the document itself, rather than an optional code sample.
+  const readCodeBlocks =
+    options.readCodeBlocks === true ||
+    root.ownerDocument.contentType === "text/plain";
   let currentElement: Element | null = null;
   let currentText = "";
   let currentPieces: TextPiece[] = [];
@@ -167,7 +172,7 @@ export function extractTextBlocks(
   };
 
   while (node) {
-    if (!shouldSkip(node, options.readCodeBlocks ?? false, hiddenCache)) {
+    if (!shouldSkip(node, readCodeBlocks, hiddenCache)) {
       const block = nearestBlock(node, root);
       if (currentElement && currentElement !== block) flush();
       currentElement = block;

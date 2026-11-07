@@ -21,6 +21,22 @@ function blockFromText(text: string): TextBlock {
 }
 
 describe("article text extraction", () => {
+  it("reads a complete plain-text Markdown document with code reading disabled", () => {
+    const plainDocument = new DOMParser().parseFromString("", "text/html");
+    Object.defineProperty(plainDocument, "contentType", { value: "text/plain" });
+    const pre = plainDocument.createElement("pre");
+    const text = `# مقال عربي\n\n${"هذا نص المقال بالكامل.\n".repeat(3000)}\nنهاية المقال`;
+    pre.textContent = text;
+    plainDocument.body.append(pre);
+
+    const blocks = extractTextBlocks(plainDocument.body, { readCodeBlocks: false });
+
+    expect(blocks.map((block) => block.text).join("")).toBe(text);
+    const sentences = segmentBlocks(blocks, () => "ar");
+    expect(sentences.at(-1)?.words.at(-1)?.display).toBe("المقال");
+    expect(sentences.at(-1)?.words.at(-1)?.pieces.at(-1)?.end).toBe(text.length);
+  });
+
   it("keeps visible prose and preserves inline text-node offsets", () => {
     const root = document.createElement("article");
     root.innerHTML = [
