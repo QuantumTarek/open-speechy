@@ -5,9 +5,12 @@ import importlib.util
 from collections.abc import Callable
 from pathlib import Path
 
+import numpy as np
+
 from ..align import estimated_word_timings, forced_align_words, token_word_timings
 from ..model_store import download_snapshot
 from .base import EngineUnavailable, Synthesis, float_pcm_to_wav
+from .chatterbox_utils import audio_samples
 
 KOKORO_REPO = "hexgrad/Kokoro-82M"
 SAMPLE_RATE = 24_000
@@ -149,7 +152,7 @@ class KokoroEngine:
 
     def _generate(
         self, text: str, speed: float, voice_id: str
-    ) -> tuple[list[float], list[tuple[str, float | None, float | None]]]:
+    ) -> tuple[np.ndarray, list[tuple[str, float | None, float | None]]]:
         """Audio samples, and each token's text with its start and end in seconds."""
         if not self._pipelines or self._voice_dir is None:
             raise EngineUnavailable("Kokoro has not been loaded.")
@@ -157,13 +160,14 @@ class KokoroEngine:
             raise EngineUnavailable(f"Unknown Kokoro voice: {voice_id}")
         pipeline = self._pipelines[voice_id[0]]
         voice_file = str(self._voice_dir / f"{voice_id}.pt")
-        chunks: list[float] = []
+        chunks = []
+        sample_count = 0
         tokens: list[tuple[str, float | None, float | None]] = []
         output = pipeline(text, voice=voice_file, speed=speed)
         for result in output:
             _, _, audio = result
             # A long text comes back in parts, each timed from its own start.
-            offset = len(chunks) / SAMPLE_RATE
+            offset = sample_count / SAMPLE_RATE
             for token in getattr(result, "tokens", None) or ():
                 start, end = token.start_ts, token.end_ts
                 timed = start is not None and end is not None
@@ -174,14 +178,12 @@ class KokoroEngine:
                         offset + end if timed else None,
                     )
                 )
-            if hasattr(audio, "detach"):
-                audio = audio.detach().cpu().numpy()
-            if hasattr(audio, "reshape"):
-                audio = audio.reshape(-1)
-            chunks.extend(float(sample) for sample in audio)
+            chunk = audio_samples(audio)
+            chunks.append(chunk)
+            sample_count += chunk.size
         if not chunks:
             raise EngineUnavailable("Kokoro returned no audio.")
-        return chunks, tokens
+        return np.concatenate(chunks), tokens
 
 
 def _pinned_pipeline_factory(snapshot: Path) -> Callable[..., object]:

@@ -12,9 +12,12 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from ..align import estimated_word_timings, forced_align_words
 from ..model_store import detect_torch_device, download_snapshot, local_model_file
 from .base import EngineUnavailable, Synthesis, float_pcm_to_wav
+from .chatterbox_utils import audio_samples
 
 
 class SilmaEngine:
@@ -135,7 +138,9 @@ class SilmaEngine:
         def resolve_silma_file(url: str, cache_dir: str | None = None, **kwargs: Any):
             prefix = "hf://silma-ai/silma-tts/"
             if url.startswith(prefix):
-                return str(local_model_file("silma", model_snapshot, url[len(prefix) :]))
+                return str(
+                    local_model_file("silma", model_snapshot, url[len(prefix) :])
+                )
             return original_cached_path(url, cache_dir=cache_dir, **kwargs)
 
         def resolve_vocoder_file(
@@ -171,15 +176,16 @@ class SilmaEngine:
         text: str,
         lang: str,
         speed: float,
-    ) -> tuple[list[float], int]:
+    ) -> tuple[np.ndarray, int]:
         if self._model is None:
             raise EngineUnavailable("SILMA has not been loaded.")
         reference = self._reference_audio or os.fspath(
             files("silma_tts").joinpath("infer/ref_audio_samples/ar.ref.24k.wav")
         )
         try:
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-                io.StringIO()
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
             ):
                 audio, sample_rate, _ = self._model.infer(
                     ref_file=reference,
@@ -196,13 +202,7 @@ class SilmaEngine:
                 )
         except Exception as error:
             raise EngineUnavailable("SILMA synthesis failed.") from error
-        if hasattr(audio, "detach"):
-            audio = audio.detach().cpu().numpy()
-        if hasattr(audio, "reshape"):
-            audio = audio.reshape(-1)
-        samples = [float(sample) for sample in audio]
-        if not samples:
-            raise EngineUnavailable("SILMA returned no audio.")
+        samples = audio_samples(audio)
         return samples, int(sample_rate)
 
     def unload(self) -> None:

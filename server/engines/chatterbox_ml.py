@@ -6,6 +6,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from ..align import estimated_word_timings, forced_align_words
 from ..model_store import detect_torch_device, download_snapshot
 from .base import EngineUnavailable, Synthesis, float_pcm_to_wav
@@ -105,11 +107,13 @@ class ChatterboxMultilingualEngine:
         self._model = None
         self.loaded = False
 
-    def _generate(self, text: str, speed: float) -> list[float]:
+    def _generate(self, text: str, speed: float) -> np.ndarray:
         if self._model is None:
             raise EngineUnavailable("Chatterbox Multilingual has not been loaded.")
         try:
             audio: Any = self._model.generate(text, language_id="ar")
             return change_speed(audio_samples(audio), speed)
         except Exception as error:
-            raise EngineUnavailable("Chatterbox Multilingual synthesis failed.") from error
+            raise EngineUnavailable(
+                "Chatterbox Multilingual synthesis failed."
+            ) from error

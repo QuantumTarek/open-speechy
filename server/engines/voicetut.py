@@ -9,6 +9,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from ..align import estimated_word_timings, forced_align_words
 from ..model_store import detect_torch_device, download_snapshot
 from .base import EngineUnavailable, Synthesis, float_pcm_to_wav
@@ -146,7 +148,9 @@ class VoiceTutEngine:
                 ) from error
         self.loaded = True
 
-    def _generate(self, text: str, speaker: str, speed: float) -> tuple[list[float], int]:
+    def _generate(
+        self, text: str, speaker: str, speed: float
+    ) -> tuple[np.ndarray, int]:
         if self._model is None:
             raise EngineUnavailable("VoiceTut has not been loaded.")
         try:

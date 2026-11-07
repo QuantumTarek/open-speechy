@@ -203,9 +203,27 @@ class Aligner:
         return _load_mms_fa.cache_info().currsize > 0
 
     def path(self) -> Path:
-        import torch
+        # Match torch.hub's default without importing torch in the API process.
+        import sys
 
-        return Path(torch.hub.get_dir()) / "checkpoints" / "model.pt"
+        torch = sys.modules.get("torch")
+        hub = (
+            Path(torch.hub.get_dir())
+            if torch is not None
+            else Path(
+                os.environ.get(
+                    "TORCH_HOME",
+                    os.path.join(
+                        os.environ.get(
+                            "XDG_CACHE_HOME", os.path.expanduser("~/.cache")
+                        ),
+                        "torch",
+                    ),
+                )
+            )
+            / "hub"
+        )
+        return hub / "checkpoints" / "model.pt"
 
     def downloaded(self) -> bool:
         return self.available and self.path().is_file()
@@ -290,12 +308,7 @@ def word_spans_to_timings(
     duration_ms: float,
     frame_count: int,
 ) -> list[dict[str, float | int]] | None:
-    if (
-        not words
-        or len(spans) != len(words)
-        or duration_ms <= 0
-        or frame_count <= 0
-    ):
+    if not words or len(spans) != len(words) or duration_ms <= 0 or frame_count <= 0:
         return None
 
     frame_ms = duration_ms / frame_count
@@ -316,7 +329,12 @@ def word_spans_to_timings(
             or start * frame_ms < previous_end
         ):
             return None
-        if score is not None and math.isfinite(score) and 0 <= score <= 1 and score < 0.05:
+        if (
+            score is not None
+            and math.isfinite(score)
+            and 0 <= score <= 1
+            and score < 0.05
+        ):
             return None
 
         start_ms = start * frame_ms

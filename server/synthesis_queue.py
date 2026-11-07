@@ -8,9 +8,14 @@ class DuplicateRequestError(RuntimeError):
     pass
 
 
+class QueueFullError(RuntimeError):
+    pass
+
+
 class SynthesisQueue:
-    def __init__(self) -> None:
-        self._semaphores: dict[str, asyncio.Semaphore] = {}
+    def __init__(self, max_jobs: int = 8) -> None:
+        self._semaphore = asyncio.Semaphore(1)
+        self._max_jobs = max_jobs
         self._jobs: dict[str, tuple[str, asyncio.Task[object]]] = {}
 
     async def run(
@@ -22,11 +27,28 @@ class SynthesisQueue:
         if request_id in self._jobs:
             raise DuplicateRequestError("Request ID is already active.")
 
-        semaphore = self._semaphores.setdefault(engine_id, asyncio.Semaphore(1))
+        if len(self._jobs) >= self._max_jobs:
+            raise QueueFullError("Speech queue is full; retry shortly.")
+        semaphore = self._semaphore
 
         async def execute() -> object:
             async with semaphore:
-                return await operation()
+                # Cancelling an asyncio waiter cannot stop native inference.
+                # Keep ownership until its worker actually finishes.
+                worker = asyncio.create_task(operation())
+                try:
+                    return await asyncio.shield(worker)
+                except asyncio.CancelledError:
+                    while not worker.done():
+                        try:
+                            await asyncio.shield(worker)
+                        except asyncio.CancelledError:
+                            continue
+                        except Exception:  # noqa: BLE001 - preserve the cancellation result.
+                            break
+                    if not worker.cancelled():
+                        worker.exception()
+                    raise
 
         task = asyncio.create_task(execute())
         self._jobs[request_id] = (engine_id, task)

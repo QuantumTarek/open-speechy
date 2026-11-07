@@ -5,8 +5,11 @@ import functools
 import logging
 import os
 import re
+import subprocess
+import sys
 import uuid
 from base64 import b64encode
+from contextlib import asynccontextmanager, suppress
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
@@ -17,7 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 from .auth import AuthManager, PairingManager
 from .engines.base import EngineUnavailable, Synthesis
 from .engines.registry import EngineRegistry, ModelBusy
-from .synthesis_queue import DuplicateRequestError, SynthesisQueue
+from .synthesis_queue import DuplicateRequestError, QueueFullError, SynthesisQueue
 
 log = logging.getLogger("open_speechy.server")
 
@@ -62,7 +65,27 @@ def create_app(
     registry = engines or EngineRegistry()
     queue = jobs or SynthesisQueue()
 
+    @asynccontextmanager
+    async def lifespan(app):
+        async def reap_idle_models():
+            while True:
+                await asyncio.sleep(30)
+                try:
+                    registry.release_idle()
+                except Exception:
+                    log.exception("Could not release idle speech models")
+
+        reaper = asyncio.create_task(reap_idle_models())
+        try:
+            yield
+        finally:
+            reaper.cancel()
+            with suppress(asyncio.CancelledError):
+                await reaper
+            await asyncio.to_thread(registry.close)
+
     app = FastAPI(
+        lifespan=lifespan,
         title="Open Speechy Local Server",
         version=version,
         docs_url=None,
@@ -78,6 +101,14 @@ def create_app(
         max_age=600,
     )
 
+    @app.exception_handler(QueueFullError)
+    async def queue_full(request: Request, error: QueueFullError):
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            {"detail": str(error)}, status_code=429, headers={"Retry-After": "2"}
+        )
+
     @app.middleware("http")
     async def protect_local_host(request: Request, call_next):
         content_length = request.headers.get("content-length")
@@ -92,7 +123,9 @@ def create_app(
                 return Response("Request body is too large.", status_code=413)
         host = request.headers.get("host", "").split(":", maxsplit=1)[0]
         if host not in {"127.0.0.1", "localhost"}:
-            return Response("Local server accepts loopback hosts only.", status_code=400)
+            return Response(
+                "Local server accepts loopback hosts only.", status_code=400
+            )
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -216,6 +249,8 @@ def create_app(
 
         try:
             result = await queue.run(engine_id, identifier, run_synthesis)
+        except QueueFullError:
+            raise
         except DuplicateRequestError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
         except EngineUnavailable as error:
@@ -226,7 +261,9 @@ def create_app(
             )
             raise HTTPException(status_code=503, detail=str(error)) from error
         except asyncio.CancelledError as error:
-            raise HTTPException(status_code=499, detail="Synthesis cancelled.") from error
+            raise HTTPException(
+                status_code=499, detail="Synthesis cancelled."
+            ) from error
         except Exception as error:
             raise HTTPException(
                 status_code=500,
@@ -281,7 +318,9 @@ def create_app(
             raise HTTPException(status_code=403, detail="Extension origin required.")
         token = pairing_manager.exchange(body.code)
         if token is None:
-            raise HTTPException(status_code=400, detail="Pairing code expired or invalid.")
+            raise HTTPException(
+                status_code=400, detail="Pairing code expired or invalid."
+            )
         if not auth_manager.bind_extension_origin(origin or ""):
             raise HTTPException(status_code=403, detail="Could not bind extension ID.")
         return {"token": token}
@@ -293,15 +332,22 @@ def create_app(
 # loop, so a health check right after startup does not stall other requests.
 @functools.cache
 def detect_device() -> str:
+    probe = """import torch
+print('mps' if torch.backends.mps.is_available() else
+      'cuda' if torch.cuda.is_available() else 'cpu')
+"""
     try:
-        import torch
-    except ImportError:
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+        )
+        device = result.stdout.strip()
+        return device if device in {"cpu", "cuda", "mps"} else "cpu"
+    except (OSError, subprocess.SubprocessError):
         return "cpu"
-    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-        return "mps"
-    if torch.cuda.is_available():
-        return "cuda"
-    return "cpu"
 
 
 def run_server(host: str = HOST, port: int = PORT) -> None:

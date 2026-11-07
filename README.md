@@ -46,6 +46,13 @@ The server runs better voices on your machine, at `127.0.0.1:5123` only.
    on its own; **Options → Local server** shows its status and can start or
    stop it.
 
+The server keeps one speech engine in a separate inference process. Switching
+engines replaces that process; after two idle minutes (checked every 30 seconds),
+it exits to release model and runtime memory. The next request reloads the model.
+Speech runs one request at a time, with at most eight active or waiting jobs;
+additional requests receive HTTP 429 with a retry delay. Audio quality and model
+precision are unchanged.
+
 A server voice downloads its model the first time you use it (355 MB to
 3.2 GB). **Options → Models on this device** shows the download progress and
 can remove any model. To uninstall, run `./server/uninstall.sh` (or

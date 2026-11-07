@@ -88,6 +88,7 @@ class QueueTests(unittest.TestCase):
                 await queue.run("silma", "active", operation)
 
             self.assertTrue(queue.cancel("active"))
+            pending.set()  # Native work must finish before the slot is released.
             with self.assertRaises(asyncio.CancelledError):
                 await task
             self.assertFalse(queue.cancel("active"))

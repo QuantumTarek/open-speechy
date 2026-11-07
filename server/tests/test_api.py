@@ -144,7 +144,9 @@ def test_pairing_code_is_one_time_and_requires_extension_origin() -> None:
     assert response.status_code == 200
     assert response.json()["token"] == "test-secret"
     assert (
-        client.post("/pair", headers={"Origin": ORIGIN}, json={"code": code}).status_code
+        client.post(
+            "/pair", headers={"Origin": ORIGIN}, json={"code": code}
+        ).status_code
         == 400
     )
 
@@ -234,3 +236,25 @@ def test_pairing_page_shows_the_code_to_a_tab_but_not_to_fetches() -> None:
     )
     assert fetched.status_code == 403
     assert pairing.current_code() not in fetched.text
+
+
+def test_full_synthesis_queue_returns_retryable_429():
+    auth = AuthManager(token="test-secret", extension_id=EXTENSION_ID)
+    app = create_app(
+        auth=auth,
+        engines=EngineRegistry([FakeEngine()]),
+        jobs=SynthesisQueue(max_jobs=0),
+    )
+    with TestClient(app, base_url="http://127.0.0.1:5123") as client:
+        response = client.post(
+            "/synthesize",
+            headers=HEADERS,
+            json={
+                "voiceId": "server:fake:voice",
+                "lang": "en",
+                "words": ["hello"],
+                "speed": 1,
+            },
+        )
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "2"

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import gc
+import sys
 import threading
+import time
 from pathlib import Path
 from typing import Protocol
 
@@ -84,6 +87,7 @@ class EngineRegistry:
         engines: list[SpeechEngine] | None = None,
         store: SnapshotStore | None = None,
         aligner: WordAligner | None = None,
+        isolated: bool = True,
     ) -> None:
         configured = (
             engines
@@ -99,9 +103,55 @@ class EngineRegistry:
         self._engines = {engine.id: engine for engine in configured}
         self._store = store or MODEL_STORE
         self._aligner = aligner or ALIGNER
+        self._worker = None
+        if engines is None and isolated:
+            from ..inference_worker import InferenceWorker, WorkerAligner, WorkerEngine
+
+            self._worker = InferenceWorker()
+            self._engines = {
+                key: WorkerEngine(value, self._worker)
+                for key, value in self._engines.items()
+            }
+            self._aligner = WorkerAligner(self._aligner, self._worker)
+        self._execution_lock = asyncio.Lock()
         self._preparations: dict[str, Preparation] = {}
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._errors: dict[str, str] = {}
+        self._active = 0
+        self._last_used = time.monotonic()
+
+    def release_idle(self, idle_seconds: float = 120) -> bool:
+        """Release weights only when no preparation or inference owns them."""
+        if (
+            self._active
+            or self._tasks
+            or time.monotonic() - self._last_used < idle_seconds
+        ):
+            return False
+        loaded = [engine for engine in self._engines.values() if engine.loaded]
+        if (
+            not loaded
+            and not self._aligner.loaded
+            and not (self._worker and self._worker.engine_id)
+        ):
+            return False
+        for engine in loaded:
+            engine.unload()
+        self._aligner.unload()
+        self.close()
+        gc.collect()
+        # Do not import a heavyweight runtime merely to clean up an idle server.
+        torch = sys.modules.get("torch")
+        if torch is not None:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        return True
+
+    def close(self) -> None:
+        if self._worker is not None:
+            self._worker.close()
 
     def health(self) -> list[dict[str, object]]:
         return [
@@ -247,8 +297,14 @@ class EngineRegistry:
             raise EngineUnavailable(
                 f"Speech engine '{parts[1]}' does not support {lang}."
             )
-        await self.prepare(engine.id)
-        return await engine.synthesize(words, lang, speed, voice_id)
+        self._active += 1
+        try:
+            await self.prepare(engine.id)
+            async with self._execution_lock:
+                return await engine.synthesize(words, lang, speed, voice_id)
+        finally:
+            self._active -= 1
+            self._last_used = time.monotonic()
 
     def _require_model(self, model_id: str) -> None:
         if model_id == ALIGNER_ID:
@@ -275,6 +331,7 @@ class EngineRegistry:
         return task
 
     def _finish(self, model_id: str, task: asyncio.Task[None]) -> None:
+        self._last_used = time.monotonic()
         self._tasks.pop(model_id, None)
         self._preparations.pop(model_id, None)
         if task.cancelled():
@@ -311,6 +368,10 @@ class EngineRegistry:
             await asyncio.to_thread(
                 self._aligner.download, preparation.reporter(ALIGNER_ID)
             )
+        async with self._execution_lock:
+            await self._load_prepared(engine, preparation)
+
+    async def _load_prepared(self, engine, preparation):
         preparation.stage = "loading"
         if engine is not None:
             await engine.warmup()
