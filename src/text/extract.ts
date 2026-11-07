@@ -55,6 +55,9 @@ export function findArticleRoot(document: Document): Element {
   const candidates = Array.from(
     document.querySelectorAll('article, main, [role="main"], section, div'),
   ).slice(0, 1500);
+  // Rendered documents can put their sections directly under the body.
+  // Consider it last so an equally good, narrower article container wins.
+  if (document.body) candidates.push(document.body);
   const articleWords = new Set(
     articleText.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [],
   );
@@ -67,12 +70,14 @@ export function findArticleRoot(document: Document): Element {
       if (text.length < 100) continue;
       const words = text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
       if (words.length < 20) continue;
-      const overlap = new Set(
-        words.filter((word) => articleWords.has(word)).slice(0, 1000),
-      ).size;
-      const score =
-        (overlap / Math.max(1, Math.min(articleWords.size, 1000))) *
-        Math.log1p(text.length);
+      const uniqueWords = new Set(words);
+      const overlap = [...uniqueWords].filter((word) =>
+        articleWords.has(word),
+      ).length;
+      // Balance coverage of Readability's article against unrelated page
+      // text. Sampling before deduplication favors short, varied sections
+      // over a long article with repeated words (for example, table rows).
+      const score = (2 * overlap) / (articleWords.size + uniqueWords.size);
       if (score > bestScore) {
         best = candidate;
         bestScore = score;

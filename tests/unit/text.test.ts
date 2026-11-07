@@ -3,6 +3,7 @@ import type { TextPiece } from "../../src/engines/types";
 import {
   extractSelectionBlocks,
   extractTextBlocks,
+  findArticleRoot,
   mapTextOffsets,
   type TextBlock,
 } from "../../src/text/extract";
@@ -21,6 +22,44 @@ function blockFromText(text: string): TextBlock {
 }
 
 describe("article text extraction", () => {
+  it.each(["body", "article"])(
+    "keeps the opening and appended sections of a long rendered document in %s",
+    (container) => {
+      const doc = new DOMParser().parseFromString("", "text/html");
+      const root =
+        container === "body" ? doc.body : doc.createElement(container);
+      if (root !== doc.body) doc.body.append(root);
+      const opening = doc.createElement("div");
+      opening.innerHTML = `<h1>بداية المقال</h1><p>${"هذا نص المقال الأصلي عن الأسهم والتوزيعات. ".repeat(250)}</p>`;
+      const review = doc.createElement("div");
+      review.innerHTML = `<h2>مراجعة مستقلة</h2><p>${Array.from({ length: 200 }, (_, i) => `التصحيح${i} والملاحظات${i} والتحقق${i}.`).join(" ")}</p><p>نهاية المراجعة</p>`;
+      root.append(opening, review);
+
+      const selectedRoot = findArticleRoot(doc);
+      const blocks = extractTextBlocks(selectedRoot);
+
+      expect(selectedRoot).toBe(root);
+      expect(blocks[0].text).toBe("بداية المقال");
+      expect(blocks.at(-1)?.text).toBe("نهاية المراجعة");
+      const sentences = segmentBlocks(blocks, () => "ar");
+      expect(sentences[0].words[0].pieces[0].node).toBe(
+        opening.querySelector("h1")?.firstChild,
+      );
+      expect(sentences.at(-1)?.words.at(-1)?.pieces[0].node).toBe(
+        review.lastElementChild?.firstChild,
+      );
+    },
+  );
+
+  it("selects the article without surrounding page navigation or unrelated text", () => {
+    const doc = new DOMParser().parseFromString(
+      `<nav>${"Browse categories and settings. ".repeat(100)}</nav><main><article><h1>Careful reading</h1><p>${"Reading at a steady pace helps the mind follow an argument. ".repeat(20)}</p><p>The end of the article.</p></article></main><aside>${"Unrelated products and advertisements. ".repeat(100)}</aside>`,
+      "text/html",
+    );
+
+    expect(findArticleRoot(doc)).toBe(doc.querySelector("main"));
+  });
+
   it("reads a complete plain-text Markdown document with code reading disabled", () => {
     const plainDocument = new DOMParser().parseFromString("", "text/html");
     Object.defineProperty(plainDocument, "contentType", { value: "text/plain" });
