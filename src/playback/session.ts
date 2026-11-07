@@ -26,13 +26,7 @@ export interface PlayableSentence {
 // "buffering" means playback ran out of audio while the next sentence is
 // still being synthesized.
 export type SessionState =
-  | "idle"
-  | "loading"
-  | "playing"
-  | "buffering"
-  | "paused"
-  | "ended"
-  | "error";
+  "idle" | "loading" | "playing" | "buffering" | "paused" | "ended" | "error";
 
 export interface SessionCallbacks {
   onState(state: SessionState, error?: string): void;
@@ -100,6 +94,7 @@ export class SessionQueue {
   #generation = 0;
   #nextIndex = 0;
   #firstWordIndex: number | null = null;
+  #restartWordIndex: number | null = null;
   #scheduledCount = 0;
   #controller: AbortController | null = null;
   #fillTask: Promise<void> | null = null;
@@ -141,6 +136,8 @@ export class SessionQueue {
     this.#voiceId = options.voiceId ?? this.#voiceId;
     this.#speed = Math.min(3, Math.max(0.5, options.speed ?? this.#speed));
     this.#firstWordIndex = options.startWordIndex ?? null;
+    this.#restartWordIndex =
+      options.startWordIndex ?? sentences[0]?.words[0]?.index ?? null;
     this.#nextIndex = this.#sentenceIndexForWord(
       this.#firstWordIndex ?? sentences[0]?.words[0]?.index ?? 0,
     );
@@ -203,8 +200,12 @@ export class SessionQueue {
     this.#resetPlayback();
     this.#nextIndex = sentenceIndex;
     this.#firstWordIndex = wordIndex;
+    this.#restartWordIndex = wordIndex;
     this.#nextAudioTime = this.#audio.currentTime + 0.02;
-    if (shouldResume) await this.#startFromCurrent();
+    if (shouldResume) {
+      this.#setState("buffering");
+      await this.#startFromCurrent();
+    }
   }
 
   async setSpeed(speed: number): Promise<void> {
@@ -218,7 +219,11 @@ export class SessionQueue {
     const currentTiming = schedule
       ? timingForWord(schedule.timings, elapsedMs)
       : undefined;
-    const wordIndex = currentTiming?.wordIndex ?? sentence?.words[0]?.index;
+    const wordIndex =
+      currentTiming?.wordIndex ??
+      (schedule
+        ? sentence?.words[0]?.index
+        : (this.#restartWordIndex ?? sentence?.words[0]?.index));
     this.#speed = nextSpeed;
     if (wordIndex !== undefined) await this.seek(wordIndex);
   }
@@ -237,13 +242,17 @@ export class SessionQueue {
   }
 
   async #startFromCurrent(): Promise<void> {
+    const generation = this.#generation;
     try {
       await this.#engine.init();
+      if (generation !== this.#generation) return;
       await this.#audio.resume();
+      if (generation !== this.#generation) return;
       this.#playing = true;
       if (this.#state !== "loading") this.#setState("buffering");
-      await this.#fillQueue(this.#generation);
+      await this.#fillQueue(generation);
     } catch (error) {
+      if (generation !== this.#generation) return;
       this.#playing = false;
       this.#setState("error", errorMessage(error));
     }
@@ -251,9 +260,10 @@ export class SessionQueue {
 
   async #fillQueue(generation: number): Promise<void> {
     if (this.#fillTask) return this.#fillTask;
-    this.#fillTask = this.#fill(generation).finally(() => {
-      this.#fillTask = null;
+    const task = this.#fill(generation).finally(() => {
+      if (this.#fillTask === task) this.#fillTask = null;
     });
+    this.#fillTask = task;
     return this.#fillTask;
   }
 

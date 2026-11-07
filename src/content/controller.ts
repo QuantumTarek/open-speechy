@@ -105,7 +105,8 @@ export class ContentController {
     // Reloading or leaving the page ends its reading. Same-page URL changes
     // do not fire pagehide, and the service worker handles a closed tab.
     this.window.addEventListener("pagehide", () => {
-      if (this.#player) void this.#send({ type: "session/control", action: "stop" });
+      if (this.#player)
+        void this.#send({ type: "session/control", action: "stop" });
     });
 
     if (
@@ -292,15 +293,23 @@ export class ContentController {
 
   #showPlayer(sentences: SentencePlan[]): void {
     if (!this.#highlighter) {
-      this.#highlighter = new Highlighter(this.document, (wordIndex) => {
-        void this.#send({ type: "session/control", action: "seek", wordIndex });
-      }, {
-        ...this.#highlighterOptions(),
-        onJumpVisibilityChange: (visible) => {
-          this.#showJumpToCurrent = visible;
-          this.#render();
+      this.#highlighter = new Highlighter(
+        this.document,
+        (wordIndex) => {
+          void this.#send({
+            type: "session/control",
+            action: "seek",
+            wordIndex,
+          });
         },
-      });
+        {
+          ...this.#highlighterOptions(),
+          onJumpVisibilityChange: (visible) => {
+            this.#showJumpToCurrent = visible;
+            this.#render();
+          },
+        },
+      );
     }
     this.#clock?.stop();
     this.#clock = new PlaybackClock(this.#highlighter, (tick) => {
@@ -398,10 +407,7 @@ export class ContentController {
       const sentence = this.#sentences.find((candidate) =>
         candidate.words.some((word) => word.index === this.#currentWordIndex),
       );
-      this.#highlighter?.highlightWord(
-        this.#currentWordIndex,
-        sentence?.id,
-      );
+      this.#highlighter?.highlightWord(this.#currentWordIndex, sentence?.id);
     }
   }
 
@@ -418,10 +424,6 @@ export class ContentController {
         this.#downloadProgress = null;
       }
       this.#setState(event.state, event.error);
-      this.#clock?.setPaused(event.state === "paused");
-      if (event.state === "idle" || event.state === "ended") {
-        this.#clock?.setPaused(false);
-      }
     } else if (
       event.type === "session/word" &&
       event.sentenceId &&
@@ -458,6 +460,11 @@ export class ContentController {
   }
 
   #setState(state: SessionState, error?: string): void {
+    if (state === "paused" || state === "playing") {
+      this.#clock?.setPaused(state === "paused");
+    } else {
+      this.#clock?.stop();
+    }
     this.#state = state;
     this.#error = error;
     this.#render();
@@ -590,7 +597,10 @@ function changesText(record: MutationRecord): boolean {
 
 function hasText(node: Node): boolean {
   if (node instanceof Text) return node.data.trim() !== "";
-  const walker = node.ownerDocument?.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+  const walker = node.ownerDocument?.createTreeWalker(
+    node,
+    NodeFilter.SHOW_TEXT,
+  );
   for (let text = walker?.nextNode(); text; text = walker?.nextNode()) {
     if ((text as Text).data.trim() !== "") return true;
   }

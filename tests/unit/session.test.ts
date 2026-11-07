@@ -233,6 +233,60 @@ describe("session queue", () => {
     await seeking;
   });
 
+  it("reports buffering immediately and keeps the word across rapid speed changes", async () => {
+    const audio = new RecordingAudio();
+    const engine = new GatedEngine();
+    const synthesize = vi.spyOn(engine, "synthesize");
+    const queue = new SessionQueue(engine, audio, {
+      onState: () => {},
+      onSentenceStart: () => {},
+    });
+    const started = queue.start(sentences(), { startWordIndex: 4 });
+    await engine.release();
+    await started;
+    audio.currentTime = audio.sources[0].startAt;
+
+    const first = queue.setSpeed(1.5);
+    expect(queue.state).toBe("buffering");
+    expect(audio.sources).toHaveLength(0);
+    await flush();
+    const second = queue.setSpeed(2);
+    await engine.release();
+    await flush();
+    await engine.release();
+    await Promise.all([first, second]);
+
+    expect(queue.state).toBe("playing");
+    expect(audio.sources).toHaveLength(1);
+    expect(synthesize.mock.calls.at(-1)?.[0]).toMatchObject({
+      speed: 2,
+      wordIndices: [4],
+    });
+    expect(engine.maxConcurrent).toBe(1);
+  });
+
+  it("ignores a pending restart after stop", async () => {
+    const engine = new FakeEngine();
+    let finishInit!: () => void;
+    vi.spyOn(engine, "init").mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishInit = resolve;
+        }),
+    );
+    const audio = new RecordingAudio();
+    const queue = new SessionQueue(engine, audio, {
+      onState: () => {},
+      onSentenceStart: () => {},
+    });
+    const started = queue.start(sentences());
+    await queue.stop();
+    finishInit();
+    await started;
+    expect(queue.state).toBe("idle");
+    expect(audio.sources).toHaveLength(0);
+  });
+
   it("pauses and resumes the audio context", async () => {
     const audio = new RecordingAudio();
     const queue = new SessionQueue(new FakeEngine(), audio, {
