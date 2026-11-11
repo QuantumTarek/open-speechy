@@ -614,6 +614,7 @@ async function handleSessionCommand(
   }
 
   if (message.type === "session/set-speed") {
+    await new SettingsStore().update({ speed: clampSpeed(message.speed) });
     if (activeSession) activeSession.speed = clampSpeed(message.speed);
     if (activeSystemSession) activeSystemSession.setSpeed(message.speed);
     else await sendToOffscreen(toOffscreenMessage(message));

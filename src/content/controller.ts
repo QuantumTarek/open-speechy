@@ -215,6 +215,7 @@ export class ContentController {
   }
 
   async #start(blocks: TextBlock[], source: ReadSource): Promise<void> {
+    this.#speed = this.#settings.speed;
     const sentences = segmentBlocks(
       blocks,
       (block) => this.#languageForBlock(block),
@@ -546,6 +547,7 @@ export class ContentController {
       },
       onSpeed: (speed) => {
         this.#speed = speed;
+        this.#settings = { ...this.#settings, speed };
         this.#render();
         void this.#send({ type: "session/set-speed", speed });
       },
